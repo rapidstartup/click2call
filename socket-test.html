@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Connection Test</title>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Socket.io Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <div id="messages"></div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const messagesEl = document.getElementById('messages');
+        
+        // Connect to the socket server
+        const socket = io('http://io.click2call.ai:3002', {
+            transports: ['websocket'],
+            reconnectionAttempts: 5
+        });
+
+        // Connection events
+        socket.on('connect', () => {
+            statusEl.textContent = 'Connected! Socket ID: ' + socket.id;
+            statusEl.style.color = 'green';
+            addMessage('Connected to server');
+        });
+
+        socket.on('connect_error', (error) => {
+            statusEl.textContent = 'Connection Error: ' + error.message;
+            statusEl.style.color = 'red';
+            addMessage('Connection error: ' + error.message);
+        });
+
+        socket.on('disconnect', (reason) => {
+            statusEl.textContent = 'Disconnected: ' + reason;
+            statusEl.style.color = 'orange';
+            addMessage('Disconnected: ' + reason);
+        });
+
+        // Listen for any events from the server
+        socket.onAny((eventName, ...args) => {
+            addMessage(`Received event: ${eventName}, data: ${JSON.stringify(args)}`);
+        });
+
+        function addMessage(message) {
+            const messageEl = document.createElement('div');
+            messageEl.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            messagesEl.appendChild(messageEl);
+        }
+    </script>
+</body>
+</html> 
