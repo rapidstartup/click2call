@@ -5,83 +5,166 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Socket.io Connection Test</title>
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        .button {
+            margin: 10px 0;
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #45a049;
+        }
+        #messages {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            height: 300px;
+            overflow-y: auto;
+        }
+    </style>
 </head>
 <body>
     <h1>Socket.io Connection Test</h1>
-    <div id="status">Connecting...</div>
+    <div id="status">Not connected</div>
+    
+    <button id="checkHttp" class="button">1. Check HTTP Connection</button>
+    <button id="tryWebsocket" class="button">2. Try WebSocket</button>
+    <button id="tryPolling" class="button">3. Try Polling</button>
+    <button id="trySecure" class="button">4. Try Secure Connection (HTTPS)</button>
+    
     <div id="messages"></div>
-    <button id="tryPolling">Try Polling Transport</button>
 
     <script>
         const statusEl = document.getElementById('status');
         const messagesEl = document.getElementById('messages');
-        const tryPollingBtn = document.getElementById('tryPolling');
+        let socket;
         
-        addMessage('Initializing connection attempt...');
-        
-        // First try with WebSocket transport only
-        let socket = io('http://io.click2call.ai:3002', {
-            transports: ['websocket'],
-            reconnectionAttempts: 3,
-            timeout: 10000
-        });
-
-        // Connection events
-        socket.on('connect', () => {
-            statusEl.textContent = 'Connected! Socket ID: ' + socket.id;
-            statusEl.style.color = 'green';
-            addMessage('Connected to server');
-        });
-
-        socket.on('connect_error', (error) => {
-            statusEl.textContent = 'Connection Error: ' + error.message;
-            statusEl.style.color = 'red';
-            addMessage('Connection error: ' + error.message);
-            console.error('Connection error details:', error);
-        });
-
-        socket.on('disconnect', (reason) => {
-            statusEl.textContent = 'Disconnected: ' + reason;
-            statusEl.style.color = 'orange';
-            addMessage('Disconnected: ' + reason);
-        });
-
-        // Listen for any events from the server
-        socket.onAny((eventName, ...args) => {
-            addMessage(`Received event: ${eventName}, data: ${JSON.stringify(args)}`);
-        });
-
-        // Try with polling if WebSocket fails
-        tryPollingBtn.addEventListener('click', () => {
-            addMessage('Trying with polling transport...');
-            socket.disconnect();
+        // Check HTTP connection first
+        document.getElementById('checkHttp').addEventListener('click', () => {
+            addMessage('Checking HTTP connection to server...');
+            statusEl.textContent = 'Checking HTTP...';
+            statusEl.style.color = 'blue';
             
-            socket = io('http://io.click2call.ai:3002', {
+            fetch('http://io.click2call.ai:80')
+                .then(response => {
+                    addMessage(`HTTP Response: ${response.status} ${response.statusText}`);
+                    if (response.ok) {
+                        statusEl.textContent = 'HTTP Connection Successful';
+                        statusEl.style.color = 'green';
+                        return response.text();
+                    } else {
+                        statusEl.textContent = `HTTP Error: ${response.status}`;
+                        statusEl.style.color = 'orange';
+                        throw new Error(`HTTP error: ${response.status}`);
+                    }
+                })
+                .then(data => {
+                    addMessage(`Server response: ${data.substring(0, 100)}${data.length > 100 ? '...' : ''}`);
+                })
+                .catch(error => {
+                    addMessage(`HTTP connection error: ${error.message}`);
+                    statusEl.textContent = `HTTP Connection Failed: ${error.message}`;
+                    statusEl.style.color = 'red';
+                });
+        });
+        
+        // Try WebSocket connection
+        document.getElementById('tryWebsocket').addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            addMessage('Trying WebSocket connection...');
+            statusEl.textContent = 'Connecting via WebSocket...';
+            statusEl.style.color = 'blue';
+            
+            socket = io('http://io.click2call.ai:80', {
+                transports: ['websocket'],
+                reconnectionAttempts: 3,
+                timeout: 10000
+            });
+            
+            setupSocketListeners('WebSocket');
+        });
+        
+        // Try Polling connection
+        document.getElementById('tryPolling').addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            addMessage('Trying Polling connection...');
+            statusEl.textContent = 'Connecting via Polling...';
+            statusEl.style.color = 'blue';
+            
+            socket = io('http://io.click2call.ai:80', {
                 transports: ['polling'],
                 reconnectionAttempts: 3,
                 timeout: 10000
             });
             
+            setupSocketListeners('Polling');
+        });
+        
+        // Try Secure connection
+        document.getElementById('trySecure').addEventListener('click', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+            
+            addMessage('Trying Secure connection (HTTPS)...');
+            statusEl.textContent = 'Connecting via HTTPS...';
+            statusEl.style.color = 'blue';
+            
+            socket = io('https://io.click2call.ai:443', {
+                transports: ['websocket', 'polling'],
+                reconnectionAttempts: 3,
+                timeout: 10000
+            });
+            
+            setupSocketListeners('Secure');
+        });
+        
+        function setupSocketListeners(type) {
             socket.on('connect', () => {
-                statusEl.textContent = 'Connected (polling)! Socket ID: ' + socket.id;
+                statusEl.textContent = `Connected (${type})! Socket ID: ${socket.id}`;
                 statusEl.style.color = 'green';
-                addMessage('Connected to server using polling');
+                addMessage(`Connected to server using ${type}`);
             });
             
             socket.on('connect_error', (error) => {
-                statusEl.textContent = 'Connection Error (polling): ' + error.message;
+                statusEl.textContent = `Connection Error (${type}): ${error.message}`;
                 statusEl.style.color = 'red';
-                addMessage('Connection error with polling: ' + error.message);
-                console.error('Polling connection error details:', error);
+                addMessage(`Connection error with ${type}: ${error.message}`);
+                console.error(`${type} connection error details:`, error);
             });
-        });
-
+            
+            socket.on('disconnect', (reason) => {
+                statusEl.textContent = `Disconnected (${type}): ${reason}`;
+                statusEl.style.color = 'orange';
+                addMessage(`Disconnected (${type}): ${reason}`);
+            });
+            
+            socket.onAny((eventName, ...args) => {
+                addMessage(`Received event: ${eventName}, data: ${JSON.stringify(args)}`);
+            });
+        }
+        
         function addMessage(message) {
             const messageEl = document.createElement('div');
             messageEl.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
             messagesEl.appendChild(messageEl);
             console.log(message);
+            
+            // Auto-scroll to bottom
+            messagesEl.scrollTop = messagesEl.scrollHeight;
         }
+        
+        addMessage('Test page loaded. Click buttons to test connection.');
     </script>
 </body>
 </html> 
