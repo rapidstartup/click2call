@@ -9,7 +9,7 @@ export function setupSocketServer(httpServer: HttpServer) {
       methods: config.cors.methods,
       credentials: config.cors.credentials
     },
-    transports: ['websocket', 'polling'],
+    transports: ['websocket'],
     pingTimeout: 60000,
     pingInterval: 25000,
     allowEIO3: true
