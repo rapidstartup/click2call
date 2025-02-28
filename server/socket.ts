@@ -4,16 +4,22 @@ import { config } from './config';
 
 export function setupSocketServer(httpServer: HttpServer) {
   const io = new SocketServer(httpServer, {
-    cors: config.cors,
-    transports: ['websocket'],
+    cors: {
+      origin: config.cors.origins,
+      methods: config.cors.methods,
+      credentials: config.cors.credentials
+    },
+    transports: ['websocket', 'polling'],
     pingTimeout: 60000,
-    pingInterval: 25000
+    pingInterval: 25000,
+    allowEIO3: true
   });
 
   io.on("connection", (socket) => {
     const clientInfo = {
       id: socket.id,
-      origin: socket.handshake.headers.origin
+      origin: socket.handshake.headers.origin,
+      transport: socket.conn.transport.name
     };
     console.log("Client connected:", clientInfo);
 

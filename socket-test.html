@@ -10,15 +10,20 @@
     <h1>Socket.io Connection Test</h1>
     <div id="status">Connecting...</div>
     <div id="messages"></div>
+    <button id="tryPolling">Try Polling Transport</button>
 
     <script>
         const statusEl = document.getElementById('status');
         const messagesEl = document.getElementById('messages');
+        const tryPollingBtn = document.getElementById('tryPolling');
         
-        // Connect to the socket server
-        const socket = io('http://io.click2call.ai:3002', {
+        addMessage('Initializing connection attempt...');
+        
+        // First try with WebSocket transport only
+        let socket = io('http://io.click2call.ai:3002', {
             transports: ['websocket'],
-            reconnectionAttempts: 5
+            reconnectionAttempts: 3,
+            timeout: 10000
         });
 
         // Connection events
@@ -32,6 +37,7 @@
             statusEl.textContent = 'Connection Error: ' + error.message;
             statusEl.style.color = 'red';
             addMessage('Connection error: ' + error.message);
+            console.error('Connection error details:', error);
         });
 
         socket.on('disconnect', (reason) => {
@@ -45,10 +51,36 @@
             addMessage(`Received event: ${eventName}, data: ${JSON.stringify(args)}`);
         });
 
+        // Try with polling if WebSocket fails
+        tryPollingBtn.addEventListener('click', () => {
+            addMessage('Trying with polling transport...');
+            socket.disconnect();
+            
+            socket = io('http://io.click2call.ai:3002', {
+                transports: ['polling'],
+                reconnectionAttempts: 3,
+                timeout: 10000
+            });
+            
+            socket.on('connect', () => {
+                statusEl.textContent = 'Connected (polling)! Socket ID: ' + socket.id;
+                statusEl.style.color = 'green';
+                addMessage('Connected to server using polling');
+            });
+            
+            socket.on('connect_error', (error) => {
+                statusEl.textContent = 'Connection Error (polling): ' + error.message;
+                statusEl.style.color = 'red';
+                addMessage('Connection error with polling: ' + error.message);
+                console.error('Polling connection error details:', error);
+            });
+        });
+
         function addMessage(message) {
             const messageEl = document.createElement('div');
             messageEl.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
             messagesEl.appendChild(messageEl);
+            console.log(message);
         }
     </script>
 </body>
