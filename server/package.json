@@ -1,7 +1,6 @@
 {
   "name": "click2call-server",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "dev": "tsx watch index.ts",
     "build": "tsc",
