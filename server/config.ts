@@ -1,5 +1,5 @@
 export const config = {
-  port: process.env.PORT || 3001,
+  port: process.env.PORT || 3002,
   environment: process.env.NODE_ENV || 'development',
   cors: {
     origins: [
