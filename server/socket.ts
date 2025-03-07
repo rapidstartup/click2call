@@ -2,6 +2,30 @@ import { Server as SocketServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { config } from './config';
 
+// Track server statistics
+export interface ServerStats {
+  totalConnections: number;
+  activeConnections: number;
+  lastConnection: string | null;
+  lastDisconnection: string | null;
+  uptime: number;
+  startTime: number;
+}
+
+const stats: ServerStats = {
+  totalConnections: 0,
+  activeConnections: 0,
+  lastConnection: null,
+  lastDisconnection: null,
+  uptime: 0,
+  startTime: Date.now()
+};
+
+export function getServerStats(): ServerStats {
+  stats.uptime = Math.floor((Date.now() - stats.startTime) / 1000);
+  return { ...stats };
+}
+
 export function setupSocketServer(httpServer: HttpServer) {
   console.log('Setting up Socket.IO server with detailed config:', {
     cors: config.cors,
@@ -17,7 +41,7 @@ export function setupSocketServer(httpServer: HttpServer) {
       credentials: true,
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
     },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],  // Allow polling fallback
     pingTimeout: 60000,
     pingInterval: 25000,
     allowEIO3: true,
@@ -26,6 +50,18 @@ export function setupSocketServer(httpServer: HttpServer) {
     allowUpgrades: true,
     perMessageDeflate: {
       threshold: 2048
+    },
+    // Add proxy support
+    allowRequest: (req, callback) => {
+      // Log headers for debugging
+      console.log('Socket.IO handshake request:', {
+        headers: req.headers,
+        url: req.url,
+        method: req.method,
+        address: req.connection?.remoteAddress,
+        timestamp: new Date().toISOString()
+      });
+      callback(null, true);
     }
   });
 
@@ -65,6 +101,11 @@ export function setupSocketServer(httpServer: HttpServer) {
   });
 
   io.on("connection", (socket) => {
+    // Update stats
+    stats.totalConnections++;
+    stats.activeConnections++;
+    stats.lastConnection = new Date().toISOString();
+
     const clientInfo = {
       id: socket.id,
       origin: socket.handshake.headers.origin,
@@ -101,6 +142,10 @@ export function setupSocketServer(httpServer: HttpServer) {
     });
 
     socket.on("disconnect", (reason) => {
+      // Update stats
+      stats.activeConnections--;
+      stats.lastDisconnection = new Date().toISOString();
+
       console.log("Client disconnected:", {
         id: socket.id,
         origin: socket.handshake.headers.origin,

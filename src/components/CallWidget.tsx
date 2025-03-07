@@ -19,10 +19,11 @@ const getSocketUrl = () => {
     };
   }
   return {
-    url: 'wss://io.click2call.ai:3002',
+    url: 'https://io.click2call.ai',
     options: { 
       secure: true,
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
+      path: '/socket.io/'
     }
   };
 };
@@ -52,17 +53,22 @@ const CallWidget = () => {
   useEffect(() => {
     const socketOptions = {
       ...defaultOptions,
-      transports: ['websocket'],
-      reconnectionAttempts: 3,
+      transports: ['websocket', 'polling'],  // Allow polling fallback
+      reconnectionAttempts: 5,  // Increase retry attempts
       reconnectionDelay: 1000,
-      timeout: 10000,
+      reconnectionDelayMax: 5000,  // Cap maximum delay
+      timeout: 20000,  // Increase timeout
       forceNew: true,
       rememberUpgrade: true,
       timestampRequests: true,
-      upgrade: true
+      upgrade: true,
+      autoConnect: true,
+      // Add additional debug options
+      debug: true
     };
 
     console.log('Connecting with options:', {
+      url: SOCKET_SERVER_URL,
       ...socketOptions,
       timestamp: new Date().toISOString()
     });

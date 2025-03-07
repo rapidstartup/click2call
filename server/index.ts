@@ -3,7 +3,7 @@ import { createServer } from 'http';
 import path from 'path';
 import cors from 'cors';
 import { config } from './config';
-import { setupSocketServer } from './socket';
+import { setupSocketServer, getServerStats } from './socket';
 
 const app = express();
 app.use(cors(config.cors));
@@ -14,6 +14,20 @@ app.set('trust proxy', true);
 // Basic health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', environment: config.environment });
+});
+
+// Status page endpoint
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'templates/status.html'));
+});
+
+// Stats API endpoint
+app.get('/api/stats', (req, res) => {
+  const stats = getServerStats();
+  res.json({
+    ...stats,
+    environment: config.environment
+  });
 });
 
 // Serve static files if needed
