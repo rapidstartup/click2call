@@ -12,7 +12,11 @@ const isSecure = window.location.protocol === 'https:';
 const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 
   (isDev 
     ? 'http://localhost:3002' 
-    : 'https://io.click2call.ai:3002');  
+    : 'https://io.click2call.ai:3002');
+
+console.log('Socket URL:', SOCKET_SERVER_URL);
+console.log('Is Secure:', isSecure);
+console.log('Protocol:', window.location.protocol);
 
 const CallWidget = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -21,14 +25,22 @@ const CallWidget = () => {
   const [isCalling, setIsCalling] = useState(false);
 
   useEffect(() => {
-    const newSocket = io(SOCKET_SERVER_URL, {
+    const socketOptions = {
       transports: ['websocket'],
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
       timeout: 10000,
       secure: true,
-      rejectUnauthorized: true
-    });
+      rejectUnauthorized: true,
+      forceNew: true,
+      path: '/socket.io/',
+      rememberUpgrade: true,
+      timestampRequests: true,
+      upgrade: true
+    };
+
+    console.log('Connecting with options:', socketOptions);
+    const newSocket = io(SOCKET_SERVER_URL, socketOptions);
 
     newSocket.on('connect', () => {
       console.log('Connected to signaling server');
@@ -43,7 +55,7 @@ const CallWidget = () => {
     });
 
     newSocket.on('connect_error', (error) => {
-      console.log('Connection error:', error);
+      console.log('Connection error:', error, error.message);
       setStatus('Connection error. Retrying...');
       setIsConnected(false);
     });
