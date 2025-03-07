@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Phone } from 'lucide-react';
 import io, { Socket } from 'socket.io-client';
+import { AudioSettings } from './AudioSettings';
 
 interface SignalData {
   type: string;
@@ -49,6 +50,11 @@ const CallWidget = () => {
   const [status, setStatus] = useState<string>('Ready');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [selectedDevices, setSelectedDevices] = useState({
+    input: '',
+    output: ''
+  });
 
   useEffect(() => {
     const socketOptions = {
@@ -218,6 +224,13 @@ const CallWidget = () => {
     setStatus('Ready');
   };
 
+  const handleDeviceSelect = (type: 'input' | 'output', deviceId: string) => {
+    setSelectedDevices(prev => ({
+      ...prev,
+      [type]: deviceId
+    }));
+  };
+
   return (
     <div className="w-[300px] bg-white rounded-lg shadow-lg p-6">
       {/* Header */}
@@ -243,25 +256,43 @@ const CallWidget = () => {
         <p className="text-sm font-medium text-gray-700 mb-2">Audio Settings</p>
         <button 
           className="w-full py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+          onClick={() => setShowAudioSettings(!showAudioSettings)}
         >
           Speaker/Mic
         </button>
+        
+        {showAudioSettings && (
+          <div className="mt-4 border rounded-lg overflow-hidden">
+            <AudioSettings onDeviceSelect={handleDeviceSelect} />
+          </div>
+        )}
       </div>
 
-      {/* Call Button */}
-      <button
-        onClick={isCalling ? endCall : startCall}
-        disabled={!isConnected}
-        className={`w-full py-3 px-4 rounded-md text-white font-medium ${
-          !isConnected
-            ? 'bg-gray-400 cursor-not-allowed'
-            : isCalling
-            ? 'bg-black hover:bg-gray-800'
-            : 'bg-blue-600 hover:bg-blue-700'
-        }`}
-      >
-        {isCalling ? 'END CALL' : 'START CALL'}
-      </button>
+      {/* Call Controls */}
+      <div className="flex justify-center">
+        {!isCalling ? (
+          <button
+            onClick={startCall}
+            disabled={!isConnected || !selectedDevices.input || !selectedDevices.output}
+            className={`
+              w-full py-2 px-4 rounded-md text-sm font-medium
+              ${(!isConnected || !selectedDevices.input || !selectedDevices.output)
+                ? 'bg-gray-300 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+              }
+            `}
+          >
+            Start Call
+          </button>
+        ) : (
+          <button
+            onClick={endCall}
+            className="w-full py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
+          >
+            End Call
+          </button>
+        )}
+      </div>
 
       {/* Footer */}
       <p className="text-xs text-gray-500 text-center mt-4">
