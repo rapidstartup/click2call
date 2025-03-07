@@ -106,7 +106,15 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
   // Enhanced microphone testing with better visualization
   const startMicTest = async () => {
     try {
-      if (!audioContext.current) return;
+      if (!audioContext.current) {
+        const AudioContextClass = window.AudioContext || (window as unknown as WebKitAudioContext).webkitAudioContext;
+        audioContext.current = new AudioContextClass();
+      }
+      
+      // Ensure audioContext is running
+      if (audioContext.current.state === 'suspended') {
+        await audioContext.current.resume();
+      }
       
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { deviceId: selectedInput ? { exact: selectedInput } : undefined }
@@ -115,8 +123,10 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
       mediaStream.current = stream;
       const source = audioContext.current.createMediaStreamSource(stream);
       const analyser = audioContext.current.createAnalyser();
-      analyser.fftSize = 256;
-      analyser.smoothingTimeConstant = 0.3; // Add smoothing to the meter
+      
+      // Adjust analyzer settings for better sensitivity
+      analyser.fftSize = 1024;
+      analyser.smoothingTimeConstant = 0.2;
       
       source.connect(analyser);
       setIsTestingMic(true);
@@ -128,12 +138,18 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
       const updateVolume = () => {
         if (!isTestingMic) return;
         
-        analyser.getByteFrequencyData(dataArray);
-        // Calculate RMS value for better volume representation
-        const rms = Math.sqrt(
-          dataArray.reduce((acc, val) => acc + (val * val), 0) / bufferLength
-        );
-        const normalizedVolume = Math.min(1, rms / 128); // Normalize to 0-1 range
+        analyser.getByteTimeDomainData(dataArray);
+        
+        // Calculate RMS value from time domain data
+        let sum = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const amplitude = (dataArray[i] - 128) / 128;
+          sum += amplitude * amplitude;
+        }
+        const rms = Math.sqrt(sum / bufferLength);
+        
+        // Apply some scaling to make the meter more responsive
+        const normalizedVolume = Math.min(1, rms * 4);
         setMicVolume(normalizedVolume);
         
         animationFrame.current = requestAnimationFrame(updateVolume);
@@ -153,6 +169,9 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
     }
     if (mediaStream.current) {
       mediaStream.current.getTracks().forEach(track => track.stop());
+    }
+    if (audioContext.current) {
+      audioContext.current.suspend();
     }
     setIsTestingMic(false);
     setMicVolume(0);
