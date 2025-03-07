@@ -10,19 +10,13 @@ interface SignalData {
 const isDev = import.meta.env.DEV;
 const isSecure = window.location.protocol === 'https:';
 
-// Force HTTPS/WSS in production, allow HTTP in dev
+// In production, use the same domain without a port
 const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 
   (isDev 
     ? 'http://localhost:3002' 
-    : `https://io.click2call.ai:3002`);  // Always use HTTPS in production
+    : 'https://io.click2call.ai');  
 
-// Ensure WSS is used in production
-const socketUrl = new URL(SOCKET_SERVER_URL);
-if (!isDev && isSecure) {
-  socketUrl.protocol = 'https:';
-}
-
-console.log('Socket URL:', socketUrl.toString());
+console.log('Socket URL:', SOCKET_SERVER_URL);
 console.log('Is Secure:', isSecure);
 console.log('Protocol:', window.location.protocol);
 
@@ -48,7 +42,7 @@ const CallWidget = () => {
     };
 
     console.log('Connecting with options:', socketOptions);
-    const newSocket = io(socketUrl.toString(), socketOptions);
+    const newSocket = io(SOCKET_SERVER_URL, socketOptions);
 
     newSocket.on('connect', () => {
       console.log('Connected to signaling server');
