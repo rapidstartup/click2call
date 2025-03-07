@@ -23,7 +23,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 const server = createServer(app);
 
 // Setup Socket.IO server
-const io = setupSocketServer(server);
+setupSocketServer(server);
 
 // Start server
 server.listen(config.port, () => {
