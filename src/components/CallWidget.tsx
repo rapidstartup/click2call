@@ -22,12 +22,22 @@ const getSocketUrl = () => {
     url: 'wss://io.click2call.ai:3002',
     options: { 
       secure: true,
-      rejectUnauthorized: false  // Allow self-signed certificates in production
+      rejectUnauthorized: false
     }
   };
 };
 
 const { url: SOCKET_SERVER_URL, options: defaultOptions } = getSocketUrl();
+
+// Debug logging
+console.log('Socket Configuration:', {
+  url: SOCKET_SERVER_URL,
+  isSecure: isSecure,
+  protocol: window.location.protocol,
+  host: window.location.host,
+  origin: window.location.origin,
+  timestamp: new Date().toISOString()
+});
 
 console.log('Socket URL:', SOCKET_SERVER_URL);
 console.log('Is Secure:', isSecure);
@@ -47,47 +57,111 @@ const CallWidget = () => {
       reconnectionDelay: 1000,
       timeout: 10000,
       forceNew: true,
-      path: '/socket.io/',
       rememberUpgrade: true,
       timestampRequests: true,
       upgrade: true
     };
 
-    console.log('Connecting with options:', socketOptions);
-    const newSocket = io(SOCKET_SERVER_URL, socketOptions);
-
-    newSocket.on('connect', () => {
-      console.log('Connected to signaling server');
-      setIsConnected(true);
-      setStatus('Ready');
+    console.log('Connecting with options:', {
+      ...socketOptions,
+      timestamp: new Date().toISOString()
     });
 
-    newSocket.on('disconnect', () => {
-      console.log('Disconnected from signaling server');
+    const newSocket = io(SOCKET_SERVER_URL, socketOptions);
+
+    // Debug transport state using socket.io events
+    newSocket.on("connect_error", (error) => {
+      console.log('Connection error:', {
+        error: error.message,
+        name: error.name,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    newSocket.on("connect", () => {
+      console.log('Socket connected:', {
+        id: newSocket.id,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Debug packet events
+    newSocket.io.on("packet", (packet) => {
+      console.log('Socket packet:', {
+        type: packet.type,
+        data: packet.data,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Debug engine packet events
+    newSocket.io.engine.on("packet", (packet) => {
+      console.log('Engine packet:', {
+        type: packet.type,
+        data: packet.data,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Debug upgrading
+    newSocket.io.engine.on("upgrading", (transport) => {
+      console.log('Socket upgrading:', {
+        transport: transport.name,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Debug upgrade complete
+    newSocket.io.engine.on("upgrade", (transport) => {
+      console.log('Socket upgraded:', {
+        transport: transport.name,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Disconnected from server:', {
+        reason,
+        wasConnected: newSocket.connected,
+        timestamp: new Date().toISOString()
+      });
       setIsConnected(false);
       setStatus('Reconnecting...');
     });
 
     newSocket.on('connect_error', (error) => {
-      console.log('Connection error:', error, error.message);
+      console.log('Connection error:', {
+        error: error.message,
+        name: error.name,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
       setStatus('Connection error. Retrying...');
       setIsConnected(false);
     });
 
     newSocket.on('error', (error) => {
-      console.error('Socket error:', error);
+      console.error('Socket error:', {
+        error: error.toString(),
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString()
+      });
       setStatus('Connection error occurred');
       setIsConnected(false);
     });
 
     newSocket.on('signal', (data: SignalData) => {
-      console.log('Signal received:', data);
-      // Handle incoming signals here
+      console.log('Signal received:', {
+        data,
+        timestamp: new Date().toISOString()
+      });
     });
 
     setSocket(newSocket);
 
     return () => {
+      console.log('Cleaning up socket connection');
       newSocket.close();
     };
   }, []);

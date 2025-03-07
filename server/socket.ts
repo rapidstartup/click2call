@@ -3,16 +3,18 @@ import { Server as HttpServer } from 'http';
 import { config } from './config';
 
 export function setupSocketServer(httpServer: HttpServer) {
-  console.log('Setting up Socket.IO server with config:', {
+  console.log('Setting up Socket.IO server with detailed config:', {
     cors: config.cors,
-    environment: config.environment
+    environment: config.environment,
+    port: config.port,
+    nodeEnv: process.env.NODE_ENV
   });
 
   const io = new SocketServer(httpServer, {
     cors: {
-      origin: config.cors.origins,
-      methods: config.cors.methods,
-      credentials: config.cors.credentials,
+      origin: '*',  // Allow all origins for the widget
+      methods: ['GET', 'POST'],
+      credentials: true,
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
     },
     transports: ['websocket'],
@@ -21,22 +23,43 @@ export function setupSocketServer(httpServer: HttpServer) {
     allowEIO3: true,
     path: '/socket.io/',
     maxHttpBufferSize: 1e8,
-    // Trust the X-Forwarded-* headers from Nginx
     allowUpgrades: true,
     perMessageDeflate: {
-      threshold: 2048 // Size in bytes to compress
+      threshold: 2048
     }
   });
 
-  // Log all engine level errors
+  io.engine.on("headers", (headers, req) => {
+    console.log('Socket.IO handshake headers:', {
+      requestHeaders: req.headers,
+      responseHeaders: headers,
+      url: req.url,
+      method: req.method,
+      address: req.connection.remoteAddress
+    });
+  });
+
+  io.engine.on("initial_headers", (headers, req) => {
+    console.log('Socket.IO initial headers:', {
+      requestHeaders: req.headers,
+      responseHeaders: headers,
+      url: req.url
+    });
+  });
+
   io.engine.on("connection_error", (err) => {
     console.log('Socket.IO connection error:', {
       type: 'engine_error',
       code: err.code,
       message: err.message,
       context: err.context,
-      req: err.req?.url,
+      url: err.req?.url,
+      method: err.req?.method,
       headers: err.req?.headers,
+      address: err.req?.connection?.remoteAddress,
+      origin: err.req?.headers.origin,
+      forwarded: err.req?.headers['x-forwarded-for'],
+      proto: err.req?.headers['x-forwarded-proto'],
       stack: err.stack
     });
   });
@@ -55,16 +78,25 @@ export function setupSocketServer(httpServer: HttpServer) {
         proto: socket.handshake.headers['x-forwarded-proto'],
         host: socket.handshake.headers['x-forwarded-host'],
         for: socket.handshake.headers['x-forwarded-for']
-      }
+      },
+      timestamp: new Date().toISOString()
     };
     console.log("Client connected:", clientInfo);
 
-    socket.on("signal", (data) => {
-      console.log("Signal received from", socket.id, ":", data);
-      // Broadcast to all other clients
-      socket.broadcast.emit("signal", {
-        ...data,
-        from: socket.id
+    socket.conn.on("upgrade", (transport) => {
+      console.log("Transport upgraded for client:", {
+        id: socket.id,
+        transport: transport.name,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    socket.conn.on("packet", (packet) => {
+      console.log("Packet received:", {
+        id: socket.id,
+        type: packet.type,
+        data: packet.data,
+        timestamp: new Date().toISOString()
       });
     });
 
@@ -72,7 +104,8 @@ export function setupSocketServer(httpServer: HttpServer) {
       console.log("Client disconnected:", {
         id: socket.id,
         origin: socket.handshake.headers.origin,
-        reason
+        reason,
+        timestamp: new Date().toISOString()
       });
     });
 
@@ -80,7 +113,16 @@ export function setupSocketServer(httpServer: HttpServer) {
       console.error("Socket error for client:", {
         id: socket.id,
         error: error.toString(),
-        stack: error.stack
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    socket.on("signal", (data) => {
+      console.log("Signal received from", socket.id, ":", data);
+      socket.broadcast.emit("signal", {
+        ...data,
+        from: socket.id
       });
     });
 
