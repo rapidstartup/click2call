@@ -1,7 +1,9 @@
 import express from 'express';
-import { createServer } from 'http';
-import cors from 'cors';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
+import fs from 'fs';
 import path from 'path';
+import cors from 'cors';
 import { config } from './config';
 import { setupSocketServer } from './socket';
 
@@ -23,11 +25,24 @@ app.get('/', (req, res) => {
 // Serve static files if needed
 app.use(express.static(path.join(__dirname, '../public')));
 
-const server = createServer(app);
+// Create HTTP or HTTPS server based on environment
+let server;
+if (config.environment === 'production' && config.ssl.enabled && config.ssl.key && config.ssl.cert) {
+  console.log('Starting server in production mode with SSL');
+  const sslOptions = {
+    key: fs.readFileSync(config.ssl.key),
+    cert: fs.readFileSync(config.ssl.cert)
+  };
+  server = createHttpsServer(sslOptions, app);
+} else {
+  console.log('Starting server in development mode without SSL');
+  server = createHttpServer(app);
+}
 
-console.log('Starting server...');
+// Setup Socket.IO server
 setupSocketServer(server);
 
+console.log('Starting server...');
 server.listen(config.port, () => {
   console.log(`Server running on port ${config.port} in ${config.environment} mode`);
   console.log(`Socket.io server initialized with ${config.cors.origins.length} allowed origins`);
