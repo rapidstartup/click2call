@@ -20,7 +20,12 @@ export function setupSocketServer(httpServer: HttpServer) {
     pingInterval: 25000,
     allowEIO3: true,
     path: '/socket.io/',
-    maxHttpBufferSize: 1e8
+    maxHttpBufferSize: 1e8,
+    // Trust the X-Forwarded-* headers from Nginx
+    allowUpgrades: true,
+    perMessageDeflate: {
+      threshold: 2048 // Size in bytes to compress
+    }
   });
 
   // Log all engine level errors
@@ -45,7 +50,12 @@ export function setupSocketServer(httpServer: HttpServer) {
       query: socket.handshake.query,
       secure: socket.handshake.secure,
       protocol: socket.handshake.headers['x-forwarded-proto'] || 'unknown',
-      address: socket.handshake.address
+      address: socket.handshake.address,
+      forwarded: {
+        proto: socket.handshake.headers['x-forwarded-proto'],
+        host: socket.handshake.headers['x-forwarded-host'],
+        for: socket.handshake.headers['x-forwarded-for']
+      }
     };
     console.log("Client connected:", clientInfo);
 
