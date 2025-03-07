@@ -111,7 +111,7 @@ const CallWidget = () => {
         <div className="bg-blue-600 p-2 rounded-full">
           <Phone className="w-6 h-6 text-white" />
         </div>
-        <h2 className="text-xl font-semibold ml-2">Call2</h2>
+        <h2 className="text-xl font-semibold ml-2">Click2Call</h2>
       </div>
 
       {/* Status Message */}
@@ -149,9 +149,9 @@ const CallWidget = () => {
 
       {/* Footer */}
       <p className="text-xs text-gray-500 text-center mt-4">
-        To get your own Call2 Widget or Link, please visit{' '}
-        <a href="https://www.call2.io" className="text-blue-600 hover:underline">
-          www.call2.io
+        To get your own Click2Call Widget or Link, please visit{' '}
+        <a href="https://click2call.ai" className="text-blue-600 hover:underline">
+          click2call.ai
         </a>
       </p>
     </div>
