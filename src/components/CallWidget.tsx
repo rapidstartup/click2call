@@ -10,11 +10,16 @@ interface SignalData {
 const isDev = import.meta.env.DEV;
 const isSecure = window.location.protocol === 'https:';
 
-// In production, use the same domain without a port
-const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 
-  (isDev 
-    ? 'http://localhost:3002' 
-    : 'https://io.click2call.ai');  
+// Construct the Socket.IO URL based on the current protocol
+const getSocketUrl = () => {
+  const protocol = isSecure ? 'https' : 'http';
+  if (isDev) {
+    return 'http://localhost:3002';
+  }
+  return `${protocol}://io.click2call.ai:3002`;
+};
+
+const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || getSocketUrl();
 
 console.log('Socket URL:', SOCKET_SERVER_URL);
 console.log('Is Secure:', isSecure);
@@ -32,7 +37,7 @@ const CallWidget = () => {
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
       timeout: 10000,
-      secure: true,
+      secure: isSecure,
       rejectUnauthorized: true,
       forceNew: true,
       path: '/socket.io/',
