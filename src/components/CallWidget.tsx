@@ -12,7 +12,7 @@ const isSecure = window.location.protocol === 'https:';
 const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 
   (isDev 
     ? 'http://localhost:3002' 
-    : `${isSecure ? 'wss' : 'ws'}://io.click2call.ai:3002`);
+    : 'https://io.click2call.ai:3002');  
 
 const CallWidget = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -25,7 +25,9 @@ const CallWidget = () => {
       transports: ['websocket'],
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
-      timeout: 10000
+      timeout: 10000,
+      secure: true,
+      rejectUnauthorized: true
     });
 
     newSocket.on('connect', () => {
