@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { Phone } from 'lucide-react';
-import io from 'socket.io-client';
+import io, { Socket } from 'socket.io-client';
 
-const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 'http://localhost:3000';
+interface SignalData {
+  type: string;
+  timestamp?: number;
+}
+
+const isDev = import.meta.env.DEV;
+const isSecure = window.location.protocol === 'https:';
+const SOCKET_SERVER_URL = import.meta.env.VITE_SOCKET_SERVER_URL || 
+  (isDev 
+    ? 'http://localhost:3002' 
+    : `${isSecure ? 'https' : 'http'}://io.click2call.ai:3002`);
 
 const CallWidget = () => {
-  const [socket, setSocket] = useState<any>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<string>('Ready');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
@@ -42,7 +52,7 @@ const CallWidget = () => {
       setIsConnected(false);
     });
 
-    newSocket.on('signal', (data: any) => {
+    newSocket.on('signal', (data: SignalData) => {
       console.log('Signal received:', data);
       // Handle incoming signals here
     });
