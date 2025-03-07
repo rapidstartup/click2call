@@ -90,6 +90,8 @@ const CallWidget = () => {
         id: newSocket.id,
         timestamp: new Date().toISOString()
       });
+      setIsConnected(true);  // Set connection state to true
+      setStatus('Ready to call');  // Update status to show we're ready
     });
 
     // Debug packet events

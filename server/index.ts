@@ -18,7 +18,14 @@ app.get('/health', (req, res) => {
 
 // Status page endpoint
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'templates/status.html'));
+  // Use path.join with process.cwd() to handle both dev and prod
+  const templatePath = path.join(process.cwd(), 'server', 'templates', 'status.html');
+  res.sendFile(templatePath, (err) => {
+    if (err) {
+      console.error('Error serving status page:', err);
+      res.status(500).send('Error loading status page');
+    }
+  });
 });
 
 // Stats API endpoint
