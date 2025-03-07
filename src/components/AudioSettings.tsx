@@ -23,10 +23,12 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
   const [isTestingMic, setIsTestingMic] = useState(false);
   const [micVolume, setMicVolume] = useState(0);
   const [error, setError] = useState<string>('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   const audioContext = useRef<AudioContext>();
   const mediaStream = useRef<MediaStream>();
   const testAudio = useRef<HTMLAudioElement>();
+  const animationFrame = useRef<number>();
 
   // Initialize audio context and test audio
   useEffect(() => {
@@ -35,6 +37,9 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
     testAudio.current = new Audio('/test-audio.mp3');
     
     return () => {
+      if (animationFrame.current) {
+        cancelAnimationFrame(animationFrame.current);
+      }
       audioContext.current?.close();
       if (mediaStream.current) {
         mediaStream.current.getTracks().forEach(track => track.stop());
@@ -55,8 +60,10 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
     }
   };
 
+  // Enhanced device enumeration with visual feedback
   const enumerateDevices = async () => {
     try {
+      setIsRefreshing(true);
       const devices = await navigator.mediaDevices.enumerateDevices();
       
       const inputs = devices
@@ -85,13 +92,17 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
         setSelectedOutput(outputs[0].deviceId);
         onDeviceSelect('output', outputs[0].deviceId);
       }
+
+      setError('');
     } catch (err) {
       console.error('Error enumerating devices:', err);
       setError('Failed to get audio devices. Please make sure you have devices connected.');
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
-  // Test microphone input
+  // Enhanced microphone testing with better visualization
   const startMicTest = async () => {
     try {
       if (!audioContext.current) return;
@@ -104,9 +115,11 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
       const source = audioContext.current.createMediaStreamSource(stream);
       const analyser = audioContext.current.createAnalyser();
       analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.3; // Add smoothing to the meter
       
       source.connect(analyser);
       setIsTestingMic(true);
+      setError('');
 
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
@@ -115,20 +128,28 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
         if (!isTestingMic) return;
         
         analyser.getByteFrequencyData(dataArray);
-        const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-        setMicVolume(average / 255); // Normalize to 0-1
+        // Calculate RMS value for better volume representation
+        const rms = Math.sqrt(
+          dataArray.reduce((acc, val) => acc + (val * val), 0) / bufferLength
+        );
+        const normalizedVolume = Math.min(1, rms / 128); // Normalize to 0-1 range
+        setMicVolume(normalizedVolume);
         
-        requestAnimationFrame(updateVolume);
+        animationFrame.current = requestAnimationFrame(updateVolume);
       };
 
       updateVolume();
     } catch (err) {
       console.error('Error testing microphone:', err);
       setError('Failed to test microphone. Please check your device permissions.');
+      setIsTestingMic(false);
     }
   };
 
   const stopMicTest = () => {
+    if (animationFrame.current) {
+      cancelAnimationFrame(animationFrame.current);
+    }
     if (mediaStream.current) {
       mediaStream.current.getTracks().forEach(track => track.stop());
     }
@@ -244,20 +265,28 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
 
         <button
           onClick={enumerateDevices}
-          className="p-2 text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100"
+          disabled={isRefreshing}
+          className={`p-2 rounded-md ${
+            isRefreshing 
+              ? 'text-gray-400 bg-gray-100'
+              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+          }`}
           title="Refresh devices"
         >
-          <RefreshCcw className="w-5 h-5" />
+          <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {/* Volume Meter */}
       {isTestingMic && (
         <div className="mt-4">
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
             <div
-              className="h-full bg-green-500 transition-all duration-100"
-              style={{ width: `${micVolume * 100}%` }}
+              className="h-full bg-green-500 transition-all duration-75"
+              style={{ 
+                width: `${micVolume * 100}%`,
+                transition: 'width 100ms linear'
+              }}
             />
           </div>
         </div>
