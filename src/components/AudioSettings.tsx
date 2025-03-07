@@ -120,13 +120,17 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
         audio: { deviceId: selectedInput ? { exact: selectedInput } : undefined }
       });
       
+      console.log('Microphone stream obtained:', stream.active);
+      
       mediaStream.current = stream;
       const source = audioContext.current.createMediaStreamSource(stream);
       const analyser = audioContext.current.createAnalyser();
       
       // Adjust analyzer settings for better sensitivity
-      analyser.fftSize = 1024;
-      analyser.smoothingTimeConstant = 0.2;
+      analyser.fftSize = 2048;
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -10;
+      analyser.smoothingTimeConstant = 0.85;
       
       source.connect(analyser);
       setIsTestingMic(true);
@@ -135,27 +139,38 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
+      let animationFrameId = 0;  // Initialize with 0
       const updateVolume = () => {
-        if (!isTestingMic) return;
-        
-        analyser.getByteTimeDomainData(dataArray);
-        
-        // Calculate RMS value from time domain data
-        let sum = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          const amplitude = (dataArray[i] - 128) / 128;
-          sum += amplitude * amplitude;
+        if (!isTestingMic) {
+          if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+          }
+          return;
         }
-        const rms = Math.sqrt(sum / bufferLength);
         
-        // Apply some scaling to make the meter more responsive
-        const normalizedVolume = Math.min(1, rms * 4);
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Get average frequency value
+        const average = dataArray.reduce((acc, value) => acc + value, 0) / bufferLength;
+        
+        // Normalize and apply some scaling for better visualization
+        const normalizedVolume = Math.min(1, average / 128);
+        console.log('Mic input level:', {
+          average,
+          normalizedVolume,
+          timestamp: new Date().toISOString()
+        });
+        
         setMicVolume(normalizedVolume);
-        
-        animationFrame.current = requestAnimationFrame(updateVolume);
+        animationFrameId = requestAnimationFrame(updateVolume);
       };
 
+      // Start the animation loop
       updateVolume();
+      
+      // Store the animation frame ID for cleanup
+      animationFrame.current = animationFrameId;
+
     } catch (err) {
       console.error('Error testing microphone:', err);
       setError('Failed to test microphone. Please check your device permissions.');
@@ -326,7 +341,7 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
             <div
               className="h-full bg-green-500 transition-all duration-75"
               style={{ 
-                width: `${micVolume * 100}%`,
+                width: `${Math.max(0, Math.min(100, micVolume * 100))}%`,
                 transition: 'width 100ms linear'
               }}
             />
