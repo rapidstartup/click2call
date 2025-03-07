@@ -91,7 +91,7 @@ const CallWidget = () => {
         timestamp: new Date().toISOString()
       });
       setIsConnected(true);  // Set connection state to true
-      setStatus('Ready to call');  // Update status to show we're ready
+      setStatus('Ready');  // Update status to show we're ready
     });
 
     // Debug packet events
@@ -166,6 +166,24 @@ const CallWidget = () => {
       });
     });
 
+    // Handle call status updates
+    newSocket.on('call-status', (data: { status: string, message: string }) => {
+      console.log('Call status update:', data);
+      setStatus(data.message);
+    });
+
+    // Handle call established
+    newSocket.on('call-established', () => {
+      setStatus('Call connected');
+      setIsCalling(true);
+    });
+
+    // Handle call ended
+    newSocket.on('call-ended', () => {
+      setStatus('Call ended');
+      setIsCalling(false);
+    });
+
     setSocket(newSocket);
 
     return () => {
@@ -178,18 +196,26 @@ const CallWidget = () => {
     if (!socket || !isConnected) return;
 
     setIsCalling(true);
-    setStatus('You are now being connected to Call2');
+    setStatus('Initiating call...');
 
-    // Send initial signal
+    // Send call start signal
     socket.emit('signal', {
-      type: 'call-init',
+      type: 'call-start',
+      timestamp: Date.now(),
+    });
+  };
+
+  const endCall = () => {
+    if (!socket || !isConnected) return;
+
+    // Send call end signal
+    socket.emit('signal', {
+      type: 'call-end',
       timestamp: Date.now(),
     });
 
-    // Simulate connection for testing
-    setTimeout(() => {
-      setStatus('You are now connected to Call2 via a free Call2 call');
-    }, 2000);
+    setIsCalling(false);
+    setStatus('Ready');
   };
 
   return (
@@ -224,15 +250,17 @@ const CallWidget = () => {
 
       {/* Call Button */}
       <button
-        onClick={startCall}
-        disabled={!isConnected || isCalling}
+        onClick={isCalling ? endCall : startCall}
+        disabled={!isConnected}
         className={`w-full py-3 px-4 rounded-md text-white font-medium ${
-          !isConnected || isCalling
+          !isConnected
             ? 'bg-gray-400 cursor-not-allowed'
+            : isCalling
+            ? 'bg-black hover:bg-gray-800'
             : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
-        START CALL
+        {isCalling ? 'END CALL' : 'START CALL'}
       </button>
 
       {/* Footer */}

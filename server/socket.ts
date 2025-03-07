@@ -6,6 +6,8 @@ import { config } from './config';
 export interface ServerStats {
   totalConnections: number;
   activeConnections: number;
+  activeCalls: number;
+  totalCalls: number;
   lastConnection: string | null;
   lastDisconnection: string | null;
   uptime: number;
@@ -15,11 +17,22 @@ export interface ServerStats {
 const stats: ServerStats = {
   totalConnections: 0,
   activeConnections: 0,
+  activeCalls: 0,
+  totalCalls: 0,
   lastConnection: null,
   lastDisconnection: null,
   uptime: 0,
   startTime: Date.now()
 };
+
+// Track active calls
+interface CallSession {
+  id: string;
+  startTime: number;
+  participants: string[];
+}
+
+const activeCalls = new Map<string, CallSession>();
 
 export function getServerStats(): ServerStats {
   stats.uptime = Math.floor((Date.now() - stats.startTime) / 1000);
@@ -39,9 +52,10 @@ export function setupSocketServer(httpServer: HttpServer) {
       origin: '*',  // Allow all origins for the widget
       methods: ['GET', 'POST'],
       credentials: true,
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+      preflightContinue: false,
+      optionsSuccessStatus: 204
     },
-    transports: ['websocket', 'polling'],  // Allow polling fallback
+    transports: ['websocket', 'polling'],
     pingTimeout: 60000,
     pingInterval: 25000,
     allowEIO3: true,
@@ -51,9 +65,7 @@ export function setupSocketServer(httpServer: HttpServer) {
     perMessageDeflate: {
       threshold: 2048
     },
-    // Add proxy support
     allowRequest: (req, callback) => {
-      // Log headers for debugging
       console.log('Socket.IO handshake request:', {
         headers: req.headers,
         url: req.url,
@@ -75,31 +87,6 @@ export function setupSocketServer(httpServer: HttpServer) {
     });
   });
 
-  io.engine.on("initial_headers", (headers, req) => {
-    console.log('Socket.IO initial headers:', {
-      requestHeaders: req.headers,
-      responseHeaders: headers,
-      url: req.url
-    });
-  });
-
-  io.engine.on("connection_error", (err) => {
-    console.log('Socket.IO connection error:', {
-      type: 'engine_error',
-      code: err.code,
-      message: err.message,
-      context: err.context,
-      url: err.req?.url,
-      method: err.req?.method,
-      headers: err.req?.headers,
-      address: err.req?.connection?.remoteAddress,
-      origin: err.req?.headers.origin,
-      forwarded: err.req?.headers['x-forwarded-for'],
-      proto: err.req?.headers['x-forwarded-proto'],
-      stack: err.stack
-    });
-  });
-
   io.on("connection", (socket) => {
     // Update stats
     stats.totalConnections++;
@@ -115,36 +102,76 @@ export function setupSocketServer(httpServer: HttpServer) {
       secure: socket.handshake.secure,
       protocol: socket.handshake.headers['x-forwarded-proto'] || 'unknown',
       address: socket.handshake.address,
-      forwarded: {
-        proto: socket.handshake.headers['x-forwarded-proto'],
-        host: socket.handshake.headers['x-forwarded-host'],
-        for: socket.handshake.headers['x-forwarded-for']
-      },
       timestamp: new Date().toISOString()
     };
     console.log("Client connected:", clientInfo);
 
-    socket.conn.on("upgrade", (transport) => {
-      console.log("Transport upgraded for client:", {
-        id: socket.id,
-        transport: transport.name,
-        timestamp: new Date().toISOString()
-      });
-    });
+    // Handle call signaling
+    socket.on("signal", async (data) => {
+      console.log("Signal received from", socket.id, ":", data);
+      
+      if (data.type === 'call-start') {
+        // For demo, we'll create a simple echo call that connects after 2 seconds
+        stats.totalCalls++;
+        stats.activeCalls++;
+        
+        const callId = `call-${Date.now()}`;
+        activeCalls.set(callId, {
+          id: callId,
+          startTime: Date.now(),
+          participants: [socket.id]
+        });
 
-    socket.conn.on("packet", (packet) => {
-      console.log("Packet received:", {
-        id: socket.id,
-        type: packet.type,
-        data: packet.data,
-        timestamp: new Date().toISOString()
-      });
+        // Simulate call setup delay
+        socket.emit('call-status', {
+          status: 'connecting',
+          message: 'Connecting your call...'
+        });
+
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Emit call established event
+        socket.emit('call-established');
+        
+        // Set up an echo response every 5 seconds
+        const echoInterval = setInterval(() => {
+          if (activeCalls.has(callId)) {
+            socket.emit('call-status', {
+              status: 'echo',
+              message: 'Echo test message'
+            });
+          } else {
+            clearInterval(echoInterval);
+          }
+        }, 5000);
+
+      } else if (data.type === 'call-end') {
+        stats.activeCalls = Math.max(0, stats.activeCalls - 1);
+        
+        // Find and remove the call session
+        for (const [callId, session] of activeCalls.entries()) {
+          if (session.participants.includes(socket.id)) {
+            activeCalls.delete(callId);
+            socket.emit('call-ended');
+            break;
+          }
+        }
+      }
     });
 
     socket.on("disconnect", (reason) => {
       // Update stats
       stats.activeConnections--;
       stats.lastDisconnection = new Date().toISOString();
+
+      // Clean up any active calls for this socket
+      for (const [callId, session] of activeCalls.entries()) {
+        if (session.participants.includes(socket.id)) {
+          activeCalls.delete(callId);
+          stats.activeCalls = Math.max(0, stats.activeCalls - 1);
+          break;
+        }
+      }
 
       console.log("Client disconnected:", {
         id: socket.id,
@@ -160,22 +187,6 @@ export function setupSocketServer(httpServer: HttpServer) {
         error: error.toString(),
         stack: error.stack,
         timestamp: new Date().toISOString()
-      });
-    });
-
-    socket.on("signal", (data) => {
-      console.log("Signal received from", socket.id, ":", data);
-      socket.broadcast.emit("signal", {
-        ...data,
-        from: socket.id
-      });
-    });
-
-    // Handle transport change
-    socket.conn.on("upgrade", (transport) => {
-      console.log("Transport upgraded for client:", {
-        id: socket.id,
-        transport: transport.name
       });
     });
   });

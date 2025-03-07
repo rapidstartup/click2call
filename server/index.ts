@@ -18,14 +18,31 @@ app.get('/health', (req, res) => {
 
 // Status page endpoint
 app.get('/', (req, res) => {
-  // Use path.join with process.cwd() to handle both dev and prod
-  const templatePath = path.join(process.cwd(), 'server', 'templates', 'status.html');
-  res.sendFile(templatePath, (err) => {
-    if (err) {
-      console.error('Error serving status page:', err);
+  // Handle both dev and prod paths, considering Nginx proxy
+  const paths = [
+    path.resolve(__dirname, '..', 'templates', 'status.html'),
+    path.resolve(__dirname, 'templates', 'status.html'),
+    path.resolve(process.cwd(), 'server', 'templates', 'status.html'),
+    path.resolve(process.cwd(), 'templates', 'status.html')
+  ];
+
+  // Try each path in sequence until one works
+  const tryPath = (index: number) => {
+    if (index >= paths.length) {
+      console.error('Failed to find status.html in any location');
       res.status(500).send('Error loading status page');
+      return;
     }
-  });
+
+    res.sendFile(paths[index], (err) => {
+      if (err) {
+        console.log(`Tried path ${paths[index]}, failed:`, err.message);
+        tryPath(index + 1);
+      }
+    });
+  };
+
+  tryPath(0);
 });
 
 // Stats API endpoint
