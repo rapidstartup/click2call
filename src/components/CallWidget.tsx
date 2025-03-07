@@ -22,7 +22,7 @@ const getSocketUrl = () => {
     url: 'wss://io.click2call.ai:3002',
     options: { 
       secure: true,
-      rejectUnauthorized: true
+      rejectUnauthorized: false  // Allow self-signed certificates in production
     }
   };
 };

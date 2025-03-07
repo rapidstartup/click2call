@@ -3,7 +3,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3002', 10),
   cors: {
     origins: process.env.NODE_ENV === 'production' 
-      ? ['https://click2call.ai'] 
+      ? ['https://click2call.ai', 'https://io.click2call.ai', 'https://io.click2call.ai:3002'] 
       : ['http://localhost:5173'],
     methods: ['GET', 'POST'],
     credentials: true,
