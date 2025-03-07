@@ -21,6 +21,7 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
   const [selectedInput, setSelectedInput] = useState<string>('');
   const [selectedOutput, setSelectedOutput] = useState<string>('');
   const [isTestingMic, setIsTestingMic] = useState(false);
+  const [isTestingSpeaker, setIsTestingSpeaker] = useState(false);
   const [micVolume, setMicVolume] = useState(0);
   const [error, setError] = useState<string>('');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -159,17 +160,35 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
 
   // Test speaker output
   const testSpeaker = () => {
-    if (testAudio.current) {
-      testAudio.current.setSinkId?.(selectedOutput)
-        .then(() => {
-          testAudio.current?.play();
-        })
-        .catch(err => {
-          console.error('Error setting audio output:', err);
-          setError('Failed to test speaker. Please check your device settings.');
-        });
+    if (!isTestingSpeaker) {
+      if (testAudio.current) {
+        testAudio.current.setSinkId?.(selectedOutput)
+          .then(() => {
+            testAudio.current!.play();
+            setIsTestingSpeaker(true);
+          })
+          .catch(err => {
+            console.error('Error setting audio output:', err);
+            setError('Failed to test speaker. Please check your device settings.');
+          });
+      }
+    } else {
+      if (testAudio.current) {
+        testAudio.current.pause();
+        testAudio.current.currentTime = 0;
+      }
+      setIsTestingSpeaker(false);
     }
   };
+
+  // Add event listener for when audio finishes playing
+  useEffect(() => {
+    if (testAudio.current) {
+      testAudio.current.addEventListener('ended', () => {
+        setIsTestingSpeaker(false);
+      });
+    }
+  }, [testAudio.current]);
 
   // Handle device selection
   const handleInputChange = (deviceId: string) => {
@@ -244,7 +263,7 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
       </div>
 
       {/* Testing Controls */}
-      <div className="flex space-x-2 pt-2">
+      <div className="flex space-x-4 mt-4">
         <button
           onClick={isTestingMic ? stopMicTest : startMicTest}
           className={`flex-1 py-2 px-4 rounded-md text-sm font-medium ${
@@ -258,9 +277,13 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
         
         <button
           onClick={testSpeaker}
-          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md text-sm font-medium hover:bg-blue-700"
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium ${
+            isTestingSpeaker
+              ? 'bg-red-600 text-white hover:bg-red-700'
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
         >
-          Test Speaker
+          {isTestingSpeaker ? 'Stop Sound' : 'Test Speaker'}
         </button>
 
         <button
