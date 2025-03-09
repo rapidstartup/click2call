@@ -1,5 +1,5 @@
 import { Handler } from '@netlify/functions';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, User } from '@supabase/supabase-js';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -15,6 +15,8 @@ export const handler: Handler = async (event) => {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   };
 
+  let user: User | null = null;
+
   // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
     return {
@@ -23,26 +25,30 @@ export const handler: Handler = async (event) => {
     };
   }
 
-  // Get the authorization token
-  const authHeader = event.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Missing or invalid authorization token' })
-    };
-  }
+  // For GET requests, skip auth check (temporary for testing)
+  if (event.httpMethod !== 'GET') {
+    // Get the authorization token
+    const authHeader = event.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Missing or invalid authorization token' })
+      };
+    }
 
-  const token = authHeader.split(' ')[1];
+    const token = authHeader.split(' ')[1];
 
-  // Verify the token and get user info
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return {
-      statusCode: 401,
-      headers,
-      body: JSON.stringify({ error: 'Invalid authorization token' })
-    };
+    // Verify the token and get user info
+    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !authUser) {
+      return {
+        statusCode: 401,
+        headers,
+        body: JSON.stringify({ error: 'Invalid authorization token' })
+      };
+    }
+    user = authUser;
   }
 
   try {
@@ -52,11 +58,18 @@ export const handler: Handler = async (event) => {
     switch (event.httpMethod) {
       case 'GET': {
         // Test endpoint
-        responseData = { message: 'Widgets API is working!' };
+        responseData = { message: 'Widgets API is working!', timestamp: new Date().toISOString() };
         break;
       }
       case 'POST': {
         // Create a new widget
+        if (!user) {
+          return {
+            statusCode: 401,
+            headers,
+            body: JSON.stringify({ error: 'Authentication required for this operation' })
+          };
+        }
         const body = JSON.parse(event.body || '{}');
         const result = await supabase
           .from('widgets')
