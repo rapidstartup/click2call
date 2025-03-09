@@ -50,6 +50,11 @@ export const handler: Handler = async (event) => {
     let error;
 
     switch (event.httpMethod) {
+      case 'GET': {
+        // Test endpoint
+        responseData = { message: 'Widgets API is working!' };
+        break;
+      }
       case 'POST': {
         // Create a new widget
         const body = JSON.parse(event.body || '{}');
