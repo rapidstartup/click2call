@@ -4,6 +4,7 @@ import { Phone, Bot, Voicemail } from 'lucide-react';
 
 export type WidgetType = 'call2app' | 'siptrunk' | 'aibot' | 'voicemail' | 'vapi';
 export type RouteType = 'call2app' | 'aibot' | 'voicemail';
+export type SipProvider = 'twilio' | 'vapi';
 
 interface WidgetConfig {
   name: string;
@@ -149,14 +150,22 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
             name="destination"
             label="Destination"
             rules={[{ required: true, message: 'Please enter a destination' }]}
+            dependencies={[['settings', 'sip_provider']]}
             extra={widgetType === 'siptrunk' ? 
-              "For Twilio, enter your SIP Domain URI (e.g., your-domain.sip.twilio.com) or phone number" : 
+              form.getFieldValue(['settings', 'sip_provider']) === 'twilio' ?
+                "For Twilio, enter your SIP Domain URI (e.g., your-domain.sip.twilio.com) or phone number" :
+              form.getFieldValue(['settings', 'sip_provider']) === 'vapi' ?
+                "For VAPI, enter your SIP gateway domain (e.g., sip.vapi.ai) or phone number" :
+                "Select a SIP provider first" :
               undefined}
           >
             <Input 
               placeholder={
                 widgetType === 'call2app' ? 'Enter phone number' :
-                widgetType === 'siptrunk' ? 'Enter SIP URI or phone number' :
+                widgetType === 'siptrunk' ? 
+                  form.getFieldValue(['settings', 'sip_provider']) === 'twilio' ? 'Enter SIP URI or phone number' :
+                  form.getFieldValue(['settings', 'sip_provider']) === 'vapi' ? 'Enter SIP gateway domain or phone number' :
+                  'Select a SIP provider first' :
                 'Enter email address'
               }
             />
@@ -165,33 +174,72 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
 
         {widgetType === 'siptrunk' && (
           <div className="border rounded-lg p-4 mb-6">
-            <h3 className="text-lg font-medium mb-4">Twilio Configuration</h3>
+            <h3 className="text-lg font-medium mb-4">SIP Configuration</h3>
+            
             <Form.Item
-              name={['settings', 'twilio_account_sid']}
-              label="Account SID"
-              rules={[{ required: true, message: 'Please enter your Twilio Account SID' }]}
+              name={['settings', 'sip_provider']}
+              label="SIP Provider"
+              rules={[{ required: true, message: 'Please select a SIP provider' }]}
             >
-              <Input placeholder="Enter your Twilio Account SID" />
+              <Select
+                options={[
+                  { label: 'Twilio', value: 'twilio' },
+                  { label: 'VAPI', value: 'vapi' }
+                ]}
+                placeholder="Select SIP provider"
+              />
             </Form.Item>
 
-            <Form.Item
-              name={['settings', 'twilio_auth_token']}
-              label="Auth Token"
-              rules={[{ required: true, message: 'Please enter your Twilio Auth Token' }]}
-            >
-              <Input.Password placeholder="Enter your Twilio Auth Token" />
-            </Form.Item>
+            {form.getFieldValue(['settings', 'sip_provider']) === 'twilio' && (
+              <>
+                <Form.Item
+                  name={['settings', 'twilio_account_sid']}
+                  label="Account SID"
+                  rules={[{ required: true, message: 'Please enter your Twilio Account SID' }]}
+                >
+                  <Input placeholder="Enter your Twilio Account SID" />
+                </Form.Item>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-800 mb-2">Webhook Configuration</h4>
-              <p className="text-sm text-blue-600">
-                Configure these webhooks in your Twilio SIP Domain settings:
-              </p>
-              <ul className="list-disc list-inside text-sm text-blue-600 mt-2">
-                <li>A CALL COMES IN: https://your-server.com/twilio/voice</li>
-                <li>CALL STATUS CHANGES: https://your-server.com/twilio/status</li>
-              </ul>
-            </div>
+                <Form.Item
+                  name={['settings', 'twilio_auth_token']}
+                  label="Auth Token"
+                  rules={[{ required: true, message: 'Please enter your Twilio Auth Token' }]}
+                >
+                  <Input.Password placeholder="Enter your Twilio Auth Token" />
+                </Form.Item>
+
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">Webhook Configuration</h4>
+                  <p className="text-sm text-blue-600">
+                    Configure these webhooks in your Twilio SIP Domain settings:
+                  </p>
+                  <ul className="list-disc list-inside text-sm text-blue-600 mt-2">
+                    <li>A CALL COMES IN: https://your-server.com/twilio/voice</li>
+                    <li>CALL STATUS CHANGES: https://your-server.com/twilio/status</li>
+                  </ul>
+                </div>
+              </>
+            )}
+
+            {form.getFieldValue(['settings', 'sip_provider']) === 'vapi' && (
+              <>
+                <Form.Item
+                  name={['settings', 'vapi_api_key']}
+                  label="VAPI API Key"
+                  rules={[{ required: true, message: 'Please enter your VAPI API Key' }]}
+                  className="flex-1"
+                >
+                  <Input.Password placeholder="Enter your VAPI API Key" />
+                </Form.Item>
+
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">VAPI SIP Configuration</h4>
+                  <p className="text-sm text-blue-600">
+                    Your SIP trunk will be automatically configured with VAPI's infrastructure. You can use the same API key for both AI and SIP functionality.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         )}
 
