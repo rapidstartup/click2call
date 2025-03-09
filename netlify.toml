@@ -13,9 +13,26 @@
   functionsPort = 8888
 
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/widgets"
+  to = "/.netlify/functions/widgets"
   status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/widgets/*"
+  to = "/.netlify/functions/widgets/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+    [headers.values]
+    Access-Control-Allow-Origin = "*"
 
 [build.environment]
   NODE_VERSION = "18" 

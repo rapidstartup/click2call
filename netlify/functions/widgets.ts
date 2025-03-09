@@ -8,9 +8,15 @@ const supabase = createClient(
 );
 
 export const handler: Handler = async (event) => {
+  console.log('Function invoked:', {
+    path: event.path,
+    httpMethod: event.httpMethod,
+    headers: event.headers,
+  });
+
   // Enable CORS
   const headers = {
-    'Access-Control-Allow-Origin': 'https://click2call.ai',
+    'Access-Control-Allow-Origin': '*', // Update to be more permissive for testing
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   };
@@ -19,6 +25,7 @@ export const handler: Handler = async (event) => {
 
   // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
+    console.log('Handling OPTIONS request');
     return {
       statusCode: 204,
       headers
@@ -27,6 +34,7 @@ export const handler: Handler = async (event) => {
 
   // For GET requests, skip auth check (temporary for testing)
   if (event.httpMethod !== 'GET') {
+    console.log('Processing authenticated request');
     // Get the authorization token
     const authHeader = event.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
