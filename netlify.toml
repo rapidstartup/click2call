@@ -1,0 +1,24 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[dev]
+  command = "npm run dev"
+  port = 3000
+  targetPort = 5173
+
+[[redirects]]
+  from = "/api/widgets"
+  to = "/.netlify/functions/widgets"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/widgets/*"
+  to = "/.netlify/functions/widgets/:splat"
+  status = 200
+  force = true
+
+[build.environment]
+  NODE_VERSION = "18" 
