@@ -51,10 +51,6 @@ const CallWidget = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
-  const [selectedDevices, setSelectedDevices] = useState({
-    input: '',
-    output: ''
-  });
 
   useEffect(() => {
     const socketOptions = {
@@ -198,17 +194,26 @@ const CallWidget = () => {
     };
   }, []);
 
-  const startCall = () => {
+  const startCall = async () => {
     if (!socket || !isConnected) return;
 
-    setIsCalling(true);
-    setStatus('Initiating call...');
+    try {
+      // Request permissions when starting the call
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop the stream after permission check
+      
+      setIsCalling(true);
+      setStatus('Initiating call...');
 
-    // Send call start signal
-    socket.emit('signal', {
-      type: 'call-start',
-      timestamp: Date.now(),
-    });
+      // Send call start signal
+      socket.emit('signal', {
+        type: 'call-start',
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      console.error('Error accessing microphone:', error);
+      setStatus('Microphone access denied. Please check your permissions.');
+    }
   };
 
   const endCall = () => {
@@ -225,10 +230,8 @@ const CallWidget = () => {
   };
 
   const handleDeviceSelect = (type: 'input' | 'output', deviceId: string) => {
-    setSelectedDevices(prev => ({
-      ...prev,
-      [type]: deviceId
-    }));
+    // Optional: Handle device selection for users who want to change from default
+    console.log(`Selected ${type} device: ${deviceId}`);
   };
 
   return (
@@ -273,10 +276,10 @@ const CallWidget = () => {
         {!isCalling ? (
           <button
             onClick={startCall}
-            disabled={!isConnected || !selectedDevices.input || !selectedDevices.output}
+            disabled={!isConnected}
             className={`
               w-full py-2 px-4 rounded-md text-sm font-medium
-              ${(!isConnected || !selectedDevices.input || !selectedDevices.output)
+              ${!isConnected
                 ? 'bg-gray-300 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
               }
