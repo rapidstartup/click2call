@@ -1,34 +1,15 @@
-import React from 'react';
-import DashboardLayout from '../components/DashboardLayout';
-import WidgetCreator from '../components/WidgetCreator';
-import WidgetList from '../components/WidgetList';
-import { Tabs } from 'antd';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const WidgetManagementPage: React.FC = () => {
-  const items = [
-    {
-      key: 'list',
-      label: 'My Widgets',
-      children: <WidgetList />,
-    },
-    {
-      key: 'create',
-      label: 'Create Widget',
-      children: <WidgetCreator />,
-    },
-  ];
+  const navigate = useNavigate();
 
-  return (
-    <DashboardLayout>
-      <div className="p-6">
-        <Tabs
-          defaultActiveKey="list"
-          items={items}
-          className="bg-white rounded-lg"
-        />
-      </div>
-    </DashboardLayout>
-  );
+  useEffect(() => {
+    // Redirect to the dashboard widgets tab
+    navigate('/dashboard?tab=widgets');
+  }, [navigate]);
+
+  return null;
 };
 
 export default WidgetManagementPage;

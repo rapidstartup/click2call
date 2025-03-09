@@ -1,10 +1,19 @@
 import React from 'react';
 import { Button, Card, Row, Tabs } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import WidgetCreator from '../components/WidgetCreator';
 import WidgetList from '../components/WidgetList';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const Dashboard: React.FC = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchParams = new URLSearchParams(location.search);
+  const defaultTab = searchParams.get('tab') || 'overview';
+
+  const handleTabChange = (activeKey: string) => {
+    navigate(`/dashboard?tab=${activeKey}`);
+  };
+
   const items = [
     {
       key: 'overview',
@@ -47,10 +56,23 @@ const Dashboard: React.FC = () => {
       ),
     },
     {
-      key: 'create',
-      label: 'Create Widget',
-      children: <WidgetCreator />,
+      key: 'call-routing',
+      label: 'Call Routing',
+      children: (
+        <div className="text-center p-8">
+          <h3 className="text-lg text-gray-500">Call Routing configuration coming soon</h3>
+        </div>
+      ),
     },
+    {
+      key: 'reports',
+      label: 'Reports',
+      children: (
+        <div className="text-center p-8">
+          <h3 className="text-lg text-gray-500">Reports dashboard coming soon</h3>
+        </div>
+      ),
+    }
   ];
 
   return (
@@ -58,7 +80,8 @@ const Dashboard: React.FC = () => {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
         <Tabs
-          defaultActiveKey="overview"
+          activeKey={defaultTab}
+          onChange={handleTabChange}
           items={items}
           className="bg-white rounded-lg shadow p-6"
         />
