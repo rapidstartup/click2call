@@ -20,7 +20,11 @@ interface WidgetConfig {
   settings: Record<string, string | number | boolean>;
 }
 
-const WidgetCreator: React.FC = () => {
+interface WidgetCreatorProps {
+  onSuccess?: () => void;
+}
+
+const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
   const [form] = Form.useForm();
   const [widgetType, setWidgetType] = useState<WidgetType>('call2app');
 
@@ -42,6 +46,7 @@ const WidgetCreator: React.FC = () => {
       console.log('Creating widget:', values);
       message.success('Widget created successfully!');
       form.resetFields();
+      onSuccess?.();
     } catch {
       message.error('Failed to create widget');
     }

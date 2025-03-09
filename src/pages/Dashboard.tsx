@@ -1,9 +1,10 @@
-import React from 'react';
-import { Button, Card, Row, Tabs } from 'antd';
+import React, { useState } from 'react';
+import { Button, Card, Row, Tabs, Modal } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { Download, Filter } from 'lucide-react';
 import { BarChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import WidgetList from '../components/WidgetList';
+import WidgetCreator from '../components/WidgetCreator';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const reportData = [
@@ -21,6 +22,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const defaultTab = searchParams.get('tab') || 'overview';
+  const [isCreatorVisible, setIsCreatorVisible] = useState(false);
 
   const handleTabChange = (activeKey: string) => {
     navigate(`/dashboard?tab=${activeKey}`);
@@ -59,7 +61,11 @@ const Dashboard: React.FC = () => {
       children: (
         <div>
           <Row justify="end" className="mb-6">
-            <Button type="primary" icon={<PlusOutlined />}>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              onClick={() => setIsCreatorVisible(true)}
+            >
               Create New Widget
             </Button>
           </Row>
@@ -180,6 +186,15 @@ const Dashboard: React.FC = () => {
           items={items}
           className="bg-white rounded-lg shadow p-6"
         />
+        <Modal
+          title="Create New Widget"
+          open={isCreatorVisible}
+          onCancel={() => setIsCreatorVisible(false)}
+          footer={null}
+          width={800}
+        >
+          <WidgetCreator onSuccess={() => setIsCreatorVisible(false)} />
+        </Modal>
       </div>
     </div>
   );
