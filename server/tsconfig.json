@@ -4,11 +4,13 @@
     "module": "CommonJS",
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "strict": true,
-    "outDir": "dist",
-    "skipLibCheck": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "*": ["*", "*.ts"]
+    },
+    "typeRoots": ["./node_modules/@types", "./@types"],
+    "outDir": "./dist"
   },
-  "include": ["./**/*.ts"],
+  "include": ["./**/*"],
   "exclude": ["node_modules"]
 }

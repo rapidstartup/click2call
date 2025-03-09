@@ -1,12 +1,22 @@
 import React, { useState } from 'react';
-import { Button, Select, Input, Form, message } from 'antd';
+import { Button, Select, Input, Form, TimePicker, Radio, Space, message } from 'antd';
+import { Phone, Bot, Voicemail } from 'lucide-react';
 
 export type WidgetType = 'call2app' | 'siptrunk' | 'aibot' | 'voicemail';
+export type RouteType = 'call2app' | 'aibot' | 'voicemail';
 
 interface WidgetConfig {
-  type: WidgetType;
   name: string;
+  type: WidgetType;
   destination: string;
+  routing: {
+    defaultRoute: RouteType;
+    fallbackRoute: RouteType;
+    businessHours: {
+      start: string;
+      end: string;
+    };
+  };
   settings: Record<string, string | number | boolean>;
 }
 
@@ -44,7 +54,13 @@ const WidgetCreator: React.FC = () => {
         form={form}
         layout="vertical"
         onFinish={handleSubmit}
-        initialValues={{ type: 'call2app' }}
+        initialValues={{
+          type: 'call2app',
+          routing: {
+            defaultRoute: 'call2app',
+            fallbackRoute: 'voicemail'
+          }
+        }}
       >
         <Form.Item
           name="name"
@@ -80,6 +96,78 @@ const WidgetCreator: React.FC = () => {
             }
           />
         </Form.Item>
+
+        {/* Call Routing Configuration */}
+        <div className="border rounded-lg p-4 mb-6">
+          <h3 className="text-lg font-medium mb-4">Call Routing</h3>
+          
+          <Form.Item
+            name={['routing', 'defaultRoute']}
+            label="Default Route"
+            rules={[{ required: true, message: 'Please select a default route' }]}
+          >
+            <Radio.Group>
+              <Space direction="vertical" className="w-full">
+                <Radio value="call2app" className="w-full">
+                  <div className="flex items-center p-2 hover:bg-gray-50 rounded">
+                    <div className="bg-blue-100 p-2 rounded-lg">
+                      <Phone className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium">Call App</h4>
+                      <p className="text-xs text-gray-500">Route calls to your Call2 app</p>
+                    </div>
+                  </div>
+                </Radio>
+                <Radio value="aibot" className="w-full">
+                  <div className="flex items-center p-2 hover:bg-gray-50 rounded">
+                    <div className="bg-purple-100 p-2 rounded-lg">
+                      <Bot className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium">AI Bot</h4>
+                      <p className="text-xs text-gray-500">Route calls to an AI assistant</p>
+                    </div>
+                  </div>
+                </Radio>
+                <Radio value="voicemail" className="w-full">
+                  <div className="flex items-center p-2 hover:bg-gray-50 rounded">
+                    <div className="bg-green-100 p-2 rounded-lg">
+                      <Voicemail className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="text-sm font-medium">Voicemail</h4>
+                      <p className="text-xs text-gray-500">Send calls to voicemail</p>
+                    </div>
+                  </div>
+                </Radio>
+              </Space>
+            </Radio.Group>
+          </Form.Item>
+
+          <Form.Item
+            name={['routing', 'businessHours']}
+            label="Business Hours"
+          >
+            <Space>
+              <TimePicker.RangePicker format="HH:mm" />
+            </Space>
+          </Form.Item>
+
+          <Form.Item
+            name={['routing', 'fallbackRoute']}
+            label="After Hours Fallback"
+            rules={[{ required: true, message: 'Please select a fallback route' }]}
+          >
+            <Select
+              options={[
+                { label: 'Voicemail', value: 'voicemail' },
+                { label: 'AI Bot', value: 'aibot' }
+              ]}
+              placeholder="Select fallback route"
+            />
+          </Form.Item>
+        </div>
 
         <Form.Item>
           <Button type="primary" htmlType="submit" className="w-full">

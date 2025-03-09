@@ -18,7 +18,7 @@ const CallRoutingPage = () => {
                   </div>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium">Call App</h3>
-                    <p className="text-sm text-gray-500">Route calls to your Call2 app</p>
+                    <p className="text-sm text-gray-500">Route calls to your Click2Call app</p>
                   </div>
                 </div>
                 <label className="flex items-center">
