@@ -4,6 +4,8 @@ import path from 'path';
 import cors from 'cors';
 import { config } from './config';
 import { setupSocketServer, getServerStats } from './socket';
+import mobileRoutes from './routes/mobile';
+import twilioRoutes from './routes/twilio';
 
 const app = express();
 app.use(cors(config.cors));
@@ -56,6 +58,10 @@ app.get('/api/stats', (req, res) => {
 
 // Serve static files if needed
 app.use(express.static(path.join(__dirname, '../public')));
+
+// Routes
+app.use('/mobile', mobileRoutes);
+app.use('/twilio', twilioRoutes);
 
 // Create HTTP server - we'll let Nginx handle SSL
 const server = createServer(app);

@@ -29,7 +29,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
   const [widgetType, setWidgetType] = useState<WidgetType>('call2app');
 
   const widgetTypes = [
-    { label: 'Call2 App', value: 'call2app' },
+    { label: 'Click2Call App', value: 'call2app' },
     { label: 'SIP Trunk', value: 'siptrunk' },
     { label: 'AI Bot', value: 'aibot' },
     { label: 'Voicemail-to-Email', value: 'voicemail' }
@@ -42,12 +42,55 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
 
   const handleSubmit = async (values: WidgetConfig) => {
     try {
-      // TODO: Implement API call to create widget
-      console.log('Creating widget:', values);
-      message.success('Widget created successfully!');
+      // Create the widget first
+      const response = await fetch('/api/widgets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(values),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create widget');
+      }
+
+      const widget = await response.json();
+
+      // If it's a SIP trunk widget, configure Twilio webhooks
+      if (values.type === 'siptrunk' && values.destination.includes('.sip.twilio.com')) {
+        const sipDomain = values.destination.split('.sip.twilio.com')[0];
+        
+        try {
+          const twilioResponse = await fetch(`/api/widgets/${widget.id}/configure-twilio-webhooks`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              sipDomain,
+              accountSid: values.settings.twilio_account_sid,
+              authToken: values.settings.twilio_auth_token,
+            }),
+          });
+
+          if (!twilioResponse.ok) {
+            message.warning('Widget created but failed to configure Twilio webhooks automatically. Please configure them manually.');
+          } else {
+            message.success('Widget created and Twilio webhooks configured successfully!');
+          }
+        } catch (error) {
+          console.error('Failed to configure Twilio webhooks:', error);
+          message.warning('Widget created but failed to configure Twilio webhooks automatically. Please configure them manually.');
+        }
+      } else {
+        message.success('Widget created successfully!');
+      }
+
       form.resetFields();
       onSuccess?.();
-    } catch {
+    } catch (error) {
+      console.error('Error creating widget:', error);
       message.error('Failed to create widget');
     }
   };
@@ -91,16 +134,51 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
           name="destination"
           label="Destination"
           rules={[{ required: true, message: 'Please enter a destination' }]}
+          extra={widgetType === 'siptrunk' ? 
+            "For Twilio, enter your SIP Domain URI (e.g., your-domain.sip.twilio.com) or phone number" : 
+            undefined}
         >
           <Input 
             placeholder={
               widgetType === 'call2app' ? 'Enter phone number' :
-              widgetType === 'siptrunk' ? 'Enter SIP address' :
+              widgetType === 'siptrunk' ? 'Enter SIP URI or phone number' :
               widgetType === 'aibot' ? 'Enter AI Bot configuration' :
               'Enter email address'
             }
           />
         </Form.Item>
+
+        {widgetType === 'siptrunk' && (
+          <div className="border rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-medium mb-4">Twilio Configuration</h3>
+            <Form.Item
+              name={['settings', 'twilio_account_sid']}
+              label="Account SID"
+              rules={[{ required: true, message: 'Please enter your Twilio Account SID' }]}
+            >
+              <Input placeholder="Enter your Twilio Account SID" />
+            </Form.Item>
+
+            <Form.Item
+              name={['settings', 'twilio_auth_token']}
+              label="Auth Token"
+              rules={[{ required: true, message: 'Please enter your Twilio Auth Token' }]}
+            >
+              <Input.Password placeholder="Enter your Twilio Auth Token" />
+            </Form.Item>
+
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">Webhook Configuration</h4>
+              <p className="text-sm text-blue-600">
+                Configure these webhooks in your Twilio SIP Domain settings:
+              </p>
+              <ul className="list-disc list-inside text-sm text-blue-600 mt-2">
+                <li>A CALL COMES IN: https://your-server.com/twilio/voice</li>
+                <li>CALL STATUS CHANGES: https://your-server.com/twilio/status</li>
+              </ul>
+            </div>
+          </div>
+        )}
 
         {/* Call Routing Configuration */}
         <div className="border rounded-lg p-4 mb-6">
@@ -113,17 +191,32 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
           >
             <Radio.Group>
               <Space direction="vertical" className="w-full">
-                <Radio value="call2app" className="w-full">
-                  <div className="flex items-center p-2 hover:bg-gray-50 rounded">
-                    <div className="bg-blue-100 p-2 rounded-lg">
-                      <Phone className="w-5 h-5 text-blue-600" />
+                {(widgetType === 'call2app' || widgetType === 'siptrunk') && (
+                  <Radio value="call2app" className="w-full">
+                    <div className="flex items-center p-2 hover:bg-gray-50 rounded">
+                      <div className="bg-blue-100 p-2 rounded-lg">
+                        <Phone className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-medium">Call App</h4>
+                        <p className="text-xs text-gray-500">Route calls to your Click2Call app</p>
+                      </div>
                     </div>
-                    <div className="ml-3">
-                      <h4 className="text-sm font-medium">Call App</h4>
-                      <p className="text-xs text-gray-500">Route calls to your Call2 app</p>
+                  </Radio>
+                )}
+                {widgetType === 'siptrunk' && (
+                  <Radio value="siptrunk" className="w-full">
+                    <div className="flex items-center p-2 hover:bg-gray-50 rounded">
+                      <div className="bg-orange-100 p-2 rounded-lg">
+                        <Phone className="w-5 h-5 text-orange-600" />
+                      </div>
+                      <div className="ml-3">
+                        <h4 className="text-sm font-medium">SIP Trunk</h4>
+                        <p className="text-xs text-gray-500">Route calls through your SIP provider (e.g., Twilio)</p>
+                      </div>
                     </div>
-                  </div>
-                </Radio>
+                  </Radio>
+                )}
                 <Radio value="aibot" className="w-full">
                   <div className="flex items-center p-2 hover:bg-gray-50 rounded">
                     <div className="bg-purple-100 p-2 rounded-lg">
@@ -154,15 +247,25 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
             name={['routing', 'businessHours']}
             label="Business Hours"
           >
-            <Space>
-              <TimePicker.RangePicker format="HH:mm" />
-            </Space>
+            <TimePicker.RangePicker 
+              format="HH:mm"
+              onChange={(value) => {
+                // Clear fallback route if business hours are cleared
+                if (!value) {
+                  form.setFieldsValue({ routing: { ...form.getFieldValue('routing'), fallbackRoute: undefined } });
+                }
+              }}
+            />
           </Form.Item>
 
           <Form.Item
             name={['routing', 'fallbackRoute']}
             label="After Hours Fallback"
-            rules={[{ required: true, message: 'Please select a fallback route' }]}
+            rules={[{ 
+              required: !!form.getFieldValue(['routing', 'businessHours']), 
+              message: 'Please select a fallback route when business hours are set' 
+            }]}
+            dependencies={[['routing', 'businessHours']]}
           >
             <Select
               options={[
@@ -170,6 +273,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
                 { label: 'AI Bot', value: 'aibot' }
               ]}
               placeholder="Select fallback route"
+              disabled={!form.getFieldValue(['routing', 'businessHours'])}
             />
           </Form.Item>
         </div>

@@ -3,15 +3,12 @@ create table widgets (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references auth.users(id) on delete cascade,
   name text not null,
-  type text not null check (type in ('call2app', 'siptrunk', 'aibot', 'voicemail')),
+  type text not null check (type in ('call2app', 'siptrunk', 'aibot', 'email')),
   destination text not null,
-  routing jsonb not null default '{
-    "defaultRoute": "voicemail",
-    "fallbackRoute": "voicemail",
-    "businessHours": null
-  }'::jsonb,
-  created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
+  routing jsonb not null default '{}',
+  settings jsonb not null default '{}',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
 -- Enable RLS on widgets
@@ -114,4 +111,19 @@ $$ language plpgsql;
 create trigger update_mobile_device_last_active
   before update on mobile_devices
   for each row
-  execute function update_last_active(); 
+  execute function update_last_active();
+
+-- Create function to automatically update updated_at timestamp
+create or replace function update_updated_at_column()
+returns trigger as $$
+begin
+  new.updated_at = timezone('utc'::text, now());
+  return new;
+end;
+$$ language 'plpgsql';
+
+-- Create trigger to call the function before update
+create trigger update_widgets_updated_at
+  before update on widgets
+  for each row
+  execute function update_updated_at_column(); 
