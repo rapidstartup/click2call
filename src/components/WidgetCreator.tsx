@@ -148,24 +148,24 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
           />
         </Form.Item>
 
-        <Form.Item
-          name="destination"
-          label="Destination"
-          rules={[{ required: true, message: 'Please enter a destination' }]}
-          extra={widgetType === 'siptrunk' ? 
-            "For Twilio, enter your SIP Domain URI (e.g., your-domain.sip.twilio.com) or phone number" : 
-            undefined}
-        >
-          <Input 
-            placeholder={
-              widgetType === 'call2app' ? 'Enter phone number' :
-              widgetType === 'siptrunk' ? 'Enter SIP URI or phone number' :
-              widgetType === 'aibot' ? 'Enter AI Bot configuration' :
-              widgetType === 'vapi' ? 'Enter VAPI configuration' :
-              'Enter email address'
-            }
-          />
-        </Form.Item>
+        {(widgetType === 'call2app' || widgetType === 'siptrunk' || widgetType === 'voicemail') && (
+          <Form.Item
+            name="destination"
+            label="Destination"
+            rules={[{ required: true, message: 'Please enter a destination' }]}
+            extra={widgetType === 'siptrunk' ? 
+              "For Twilio, enter your SIP Domain URI (e.g., your-domain.sip.twilio.com) or phone number" : 
+              undefined}
+          >
+            <Input 
+              placeholder={
+                widgetType === 'call2app' ? 'Enter phone number' :
+                widgetType === 'siptrunk' ? 'Enter SIP URI or phone number' :
+                'Enter email address'
+              }
+            />
+          </Form.Item>
+        )}
 
         {widgetType === 'siptrunk' && (
           <div className="border rounded-lg p-4 mb-6">
