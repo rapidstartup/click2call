@@ -3,7 +3,7 @@ create table widgets (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references auth.users(id) on delete cascade,
   name text not null,
-  type text not null check (type in ('call2app', 'siptrunk', 'aibot', 'email')),
+  type text not null check (type in ('call2app', 'siptrunk', 'aibot', 'email', 'vapi')),
   destination text not null,
   routing jsonb not null default '{}',
   settings jsonb not null default '{}',

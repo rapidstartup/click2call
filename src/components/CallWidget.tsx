@@ -2,10 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { Phone } from 'lucide-react';
 import io, { Socket } from 'socket.io-client';
 import { AudioSettings } from './AudioSettings';
+import Vapi from '@vapi-ai/web';
 
 interface SignalData {
   type: string;
   timestamp?: number;
+  widgetId?: string;
+  vapiConfig?: {
+    apiKey: string;
+    assistantId: string;
+  };
+}
+
+interface CallWidgetProps {
+  widgetId: string;
 }
 
 const isDev = import.meta.env.DEV;
@@ -45,12 +55,13 @@ console.log('Socket URL:', SOCKET_SERVER_URL);
 console.log('Is Secure:', isSecure);
 console.log('Protocol:', window.location.protocol);
 
-const CallWidget = () => {
+const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<string>('Ready');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [vapiClient, setVapiClient] = useState<Vapi | null>(null);
 
   useEffect(() => {
     const socketOptions = {
@@ -198,31 +209,69 @@ const CallWidget = () => {
     if (!socket || !isConnected) return;
 
     try {
-      // Request permissions when starting the call
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop the stream after permission check
-      
       setIsCalling(true);
       setStatus('Initiating call...');
 
-      // Send call start signal
+      // Send call start signal with widget ID
       socket.emit('signal', {
         type: 'call-start',
         timestamp: Date.now(),
+        widgetId: widgetId
       });
-    } catch (error) {
-      console.error('Error accessing microphone:', error);
-      setStatus('Microphone access denied. Please check your permissions.');
+
+      // Listen for VAPI configuration if the widget is configured for VAPI
+      socket.once('vapi-config', async (config: { apiKey: string; assistantId: string }) => {
+        try {
+          // Initialize VAPI client
+          const vapi = new Vapi(config.apiKey);
+
+          // Set up event handlers
+          vapi.on('call-end', () => {
+            endCall();
+          });
+
+          vapi.on('error', (error: Error) => {
+            console.error('VAPI call error:', error);
+            setStatus('Call error occurred');
+            endCall();
+          });
+
+          // Start VAPI call with assistant ID
+          const call = await vapi.start(config.assistantId);
+          if (!call) {
+            throw new Error('Failed to start VAPI call');
+          }
+
+          setVapiClient(vapi);
+
+        } catch (error: unknown) {
+          console.error('Error initializing VAPI:', error);
+          setStatus('Failed to connect to AI assistant');
+          endCall();
+        }
+      });
+
+    } catch (error: unknown) {
+      console.error('Error starting call:', error);
+      setStatus('Failed to start call');
+      setIsCalling(false);
     }
   };
 
   const endCall = () => {
     if (!socket || !isConnected) return;
 
+    // Clean up VAPI client if it exists
+    if (vapiClient) {
+      vapiClient.stop();
+      setVapiClient(null);
+    }
+
     // Send call end signal
     socket.emit('signal', {
       type: 'call-end',
       timestamp: Date.now(),
+      widgetId: widgetId
     });
 
     setIsCalling(false);

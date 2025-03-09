@@ -1,6 +1,7 @@
 import { Server as SocketServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { config } from './config';
+import { supabase } from './db';
 
 // Track server statistics
 export interface ServerStats {
@@ -37,6 +38,12 @@ const activeCalls = new Map<string, CallSession>();
 export function getServerStats(): ServerStats {
   stats.uptime = Math.floor((Date.now() - stats.startTime) / 1000);
   return { ...stats };
+}
+
+interface SignalData {
+  type: string;
+  timestamp?: number;
+  widgetId?: string;
 }
 
 export function setupSocketServer(httpServer: HttpServer) {
@@ -107,44 +114,50 @@ export function setupSocketServer(httpServer: HttpServer) {
     console.log("Client connected:", clientInfo);
 
     // Handle call signaling
-    socket.on("signal", async (data) => {
+    socket.on("signal", async (data: SignalData) => {
       console.log("Signal received from", socket.id, ":", data);
       
-      if (data.type === 'call-start') {
-        // For demo, we'll create a simple echo call that connects after 2 seconds
-        stats.totalCalls++;
-        stats.activeCalls++;
-        
-        const callId = `call-${Date.now()}`;
-        activeCalls.set(callId, {
-          id: callId,
-          startTime: Date.now(),
-          participants: [socket.id]
-        });
+      if (data.type === 'call-start' && data.widgetId) {
+        try {
+          // Get widget configuration
+          const { data: widget, error } = await supabase
+            .from('widgets')
+            .select('*')
+            .eq('id', data.widgetId)
+            .single();
 
-        // Simulate call setup delay
-        socket.emit('call-status', {
-          status: 'connecting',
-          message: 'Connecting your call...'
-        });
-
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Emit call established event
-        socket.emit('call-established');
-        
-        // Set up an echo response every 5 seconds
-        const echoInterval = setInterval(() => {
-          if (activeCalls.has(callId)) {
-            socket.emit('call-status', {
-              status: 'echo',
-              message: 'Echo test message'
-            });
-          } else {
-            clearInterval(echoInterval);
+          if (error || !widget) {
+            throw new Error('Widget not found');
           }
-        }, 5000);
 
+          // For VAPI widgets, send VAPI configuration
+          if (widget.type === 'vapi' && widget.settings?.vapi_api_key && widget.settings?.vapi_assistant_id) {
+            socket.emit('vapi-config', {
+              apiKey: widget.settings.vapi_api_key,
+              assistantId: widget.settings.vapi_assistant_id
+            });
+          }
+
+          // Update stats and create call session
+          stats.totalCalls++;
+          stats.activeCalls++;
+          
+          const callId = `call-${Date.now()}`;
+          activeCalls.set(callId, {
+            id: callId,
+            startTime: Date.now(),
+            participants: [socket.id]
+          });
+
+          // Emit call established event
+          socket.emit('call-established');
+        } catch (error) {
+          console.error('Error handling call start:', error);
+          socket.emit('call-status', {
+            status: 'error',
+            message: 'Failed to start call'
+          });
+        }
       } else if (data.type === 'call-end') {
         stats.activeCalls = Math.max(0, stats.activeCalls - 1);
         

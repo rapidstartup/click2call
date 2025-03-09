@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button, Select, Input, Form, TimePicker, Radio, Space, message } from 'antd';
 import { Phone, Bot, Voicemail } from 'lucide-react';
 
-export type WidgetType = 'call2app' | 'siptrunk' | 'aibot' | 'voicemail';
+export type WidgetType = 'call2app' | 'siptrunk' | 'aibot' | 'voicemail' | 'vapi';
 export type RouteType = 'call2app' | 'aibot' | 'voicemail';
 
 interface WidgetConfig {
@@ -32,6 +32,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
     { label: 'Click2Call App', value: 'call2app' },
     { label: 'SIP Trunk', value: 'siptrunk' },
     { label: 'AI Bot', value: 'aibot' },
+    { label: 'VAPI Assistant', value: 'vapi' },
     { label: 'Voicemail-to-Email', value: 'voicemail' }
   ];
 
@@ -143,6 +144,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
               widgetType === 'call2app' ? 'Enter phone number' :
               widgetType === 'siptrunk' ? 'Enter SIP URI or phone number' :
               widgetType === 'aibot' ? 'Enter AI Bot configuration' :
+              widgetType === 'vapi' ? 'Enter VAPI configuration' :
               'Enter email address'
             }
           />
@@ -176,6 +178,34 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
                 <li>A CALL COMES IN: https://your-server.com/twilio/voice</li>
                 <li>CALL STATUS CHANGES: https://your-server.com/twilio/status</li>
               </ul>
+            </div>
+          </div>
+        )}
+
+        {widgetType === 'vapi' && (
+          <div className="border rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-medium mb-4">VAPI Configuration</h3>
+            <Form.Item
+              name={['settings', 'vapi_api_key']}
+              label="VAPI API Key"
+              rules={[{ required: true, message: 'Please enter your VAPI API Key' }]}
+            >
+              <Input.Password placeholder="Enter your VAPI API Key" />
+            </Form.Item>
+
+            <Form.Item
+              name={['settings', 'vapi_assistant_id']}
+              label="Assistant ID"
+              rules={[{ required: true, message: 'Please enter your VAPI Assistant ID' }]}
+            >
+              <Input placeholder="Enter your VAPI Assistant ID" />
+            </Form.Item>
+
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">VAPI Integration</h4>
+              <p className="text-sm text-blue-600">
+                This will connect your widget to a VAPI AI Assistant. When calls come in, they will be automatically routed to your configured VAPI assistant.
+              </p>
             </div>
           </div>
         )}
