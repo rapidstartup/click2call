@@ -22,7 +22,7 @@ interface WidgetConfig {
 
 interface VapiAssistant {
   id: string;
-  name: string;
+  name?: string;
   // Add other assistant properties if needed
 }
 
@@ -30,10 +30,6 @@ interface VapiAssistantOption {
   label: string;
   value: string;
   data: VapiAssistant;
-}
-
-interface VapiValidateResponse {
-  assistants: VapiAssistant[];
 }
 
 interface WidgetCreatorProps {
@@ -228,24 +224,24 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
                       // Show loading state
                       message.loading('Validating API key and loading assistants...', 0);
 
-                      // Call backend to validate and fetch assistants
-                      const response = await fetch('/api/widgets/validate-vapi', {
-                        method: 'POST',
+                      // Call VAPI directly to validate and fetch assistants
+                      const response = await fetch('https://api.vapi.ai/assistant', {
+                        method: 'GET',
                         headers: {
+                          'Authorization': `Bearer ${apiKey}`,
                           'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ apiKey }),
                       });
 
                       if (!response.ok) {
-                        throw new Error('Failed to validate API key');
+                        throw new Error(`VAPI API error: ${response.status}`);
                       }
 
-                      const { assistants } = (await response.json()) as VapiValidateResponse;
+                      const assistants = await response.json();
 
                       // Update the assistants options
-                      setVapiAssistants(assistants.map((assistant) => ({
-                        label: assistant.name,
+                      setVapiAssistants(assistants.map((assistant: VapiAssistant) => ({
+                        label: assistant.name || assistant.id,
                         value: assistant.id,
                         data: assistant
                       })));
