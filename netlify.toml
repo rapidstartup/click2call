@@ -12,18 +12,14 @@
   targetPort = 5173
   functionsPort = 8888
 
+# API redirects must come before the SPA catch-all
 [[redirects]]
-  from = "/api/widgets"
-  to = "/.netlify/functions/widgets"
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
   status = 200
   force = true
 
-[[redirects]]
-  from = "/api/widgets/*"
-  to = "/.netlify/functions/widgets/:splat"
-  status = 200
-  force = true
-
+# SPA catch-all must be last
 [[redirects]]
   from = "/*"
   to = "/index.html"
