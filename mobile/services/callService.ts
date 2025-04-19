@@ -1,6 +1,11 @@
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import socketService from './socketService';
 import { Platform } from 'react-native';
+import ringtoneSound from '@/assets/sounds/ringtone.mp3';
+
+interface CallData {
+  id: string;
+}
 
 class CallService {
   private sound: Audio.Sound | null = null;
@@ -11,38 +16,35 @@ class CallService {
     try {
       // Initialize socketService
       await socketService.init();
-      
+
       // Set up audio mode for calls
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
           playsInSilentModeIOS: true,
           shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
           playThroughEarpieceAndroid: false,
         });
       }
 
       // Pre-load ringtone
-      const { sound } = await Audio.Sound.createAsync(
-        require('@/assets/sounds/ringtone.mp3')
-      );
+      const { sound } = await Audio.Sound.createAsync(ringtoneSound);
       this.ringtone = sound;
 
       // Set up socket event handlers
       socketService.onIncomingCall(this.handleIncomingCall);
       socketService.onCallEnded(this.handleCallEnded);
-
     } catch (error) {
       console.error('Error initializing call service:', error);
       throw error;
     }
   }
 
-  private handleIncomingCall = async (callData: any) => {
+  private handleIncomingCall = async (callData: CallData) => {
     this.currentCallId = callData.id;
-    
+
     // Play ringtone
     try {
       if (this.ringtone) {
@@ -58,7 +60,7 @@ class CallService {
   private handleCallEnded = async (callId: string) => {
     if (this.currentCallId === callId) {
       this.currentCallId = null;
-      
+
       // Stop ringtone if playing
       if (this.ringtone) {
         try {
@@ -67,7 +69,7 @@ class CallService {
           console.error('Error stopping ringtone:', error);
         }
       }
-      
+
       // Clean up audio session
       if (this.sound) {
         try {
@@ -109,12 +111,12 @@ class CallService {
       this.ringtone.unloadAsync();
       this.ringtone = null;
     }
-    
+
     if (this.sound) {
       this.sound.unloadAsync();
       this.sound = null;
     }
-    
+
     socketService.disconnect();
   }
 }

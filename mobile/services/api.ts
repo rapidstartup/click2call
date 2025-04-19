@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import { Widget, CallData } from '@/types/widget';
 
-const API_URL = 'https://io.click2call.ai';
+// const API_URL = 'https://io.click2call.ai';
 
 // Helper to get auth token
 const getToken = async (): Promise<string | null> => {

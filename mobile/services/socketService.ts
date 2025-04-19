@@ -1,25 +1,26 @@
 import { io, Socket } from 'socket.io-client';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { CallData } from '@/types/widget';
 
 const SOCKET_URL = 'https://io.click2call.ai';
 
 class SocketService {
   private socket: Socket | null = null;
   private callbacks: {
-    onIncomingCall?: (callData: any) => void;
+    onIncomingCall?: (callData: CallData) => void;
     onCallEnded?: (callId: string) => void;
-    onError?: (error: any) => void;
+    onError?: (error: Error) => void;
   } = {};
 
   async init() {
     try {
       const token = await SecureStore.getItemAsync('token');
-      
+
       if (!token) {
         throw new Error('No authentication token found');
       }
-      
+
       this.socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['websocket'],
@@ -28,10 +29,10 @@ class SocketService {
       this.socket.on('connect', () => {
         console.log('Socket connected');
         // Register device for VOIP
-        if (Platform.OS !== 'web') {
-          this.socket.emit('register_device', { 
+        if (Platform.OS !== 'web' && this.socket) {
+          this.socket.emit('register_device', {
             deviceType: Platform.OS,
-            deviceToken: 'device-token-placeholder' // In production, this would be an actual device token
+            deviceToken: 'device-token-placeholder', // In production, this would be an actual device token
           });
         }
       });
@@ -40,7 +41,7 @@ class SocketService {
         console.log('Socket disconnected');
       });
 
-      this.socket.on('error', (error) => {
+      this.socket.on('error', (error: Error) => {
         console.error('Socket error:', error);
         this.callbacks.onError?.(error);
       });
@@ -54,7 +55,6 @@ class SocketService {
         console.log('Call ended:', callId);
         this.callbacks.onCallEnded?.(callId);
       });
-
     } catch (error) {
       console.error('Socket initialization error:', error);
       throw error;
@@ -68,7 +68,7 @@ class SocketService {
     }
   }
 
-  onIncomingCall(callback: (callData: any) => void) {
+  onIncomingCall(callback: (callData: CallData) => void) {
     this.callbacks.onIncomingCall = callback;
   }
 
@@ -76,7 +76,7 @@ class SocketService {
     this.callbacks.onCallEnded = callback;
   }
 
-  onError(callback: (error: any) => void) {
+  onError(callback: (error: Error) => void) {
     this.callbacks.onError = callback;
   }
 

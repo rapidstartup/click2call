@@ -28,7 +28,7 @@ export default function LoginScreen() {
         return;
       }
       
-      await signIn(email, password);
+      await signIn(email);
     } catch (error) {
       setError((error as Error).message || 'Login failed. Please try again.');
     }

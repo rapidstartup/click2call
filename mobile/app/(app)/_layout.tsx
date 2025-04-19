@@ -15,5 +15,5 @@ export default function AppLayout() {
   }
 
   // Otherwise, render the app content
-  return <Redirect href="/(app)/(tabs)/" />;
+  return <Redirect href="/(app)/(tabs)/calls" />;
 }
