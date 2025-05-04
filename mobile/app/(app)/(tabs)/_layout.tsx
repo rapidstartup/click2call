@@ -1,10 +1,8 @@
-import { Tabs } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { router, Tabs } from 'expo-router';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { Home, Phone, Settings, LogOut } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const { signOut } = useAuth();
 
   return (
     <Tabs
@@ -28,7 +26,6 @@ export default function TabLayout() {
         headerRight: () => (
           <TouchableOpacity 
             style={styles.logoutButton} 
-            onPress={signOut}
             accessibilityLabel="Sign out"
           >
             <LogOut size={20} color="#FFFFFF" />

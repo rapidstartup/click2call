@@ -6,15 +6,14 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { useAuth } from '@/contexts/AuthContext';
 import { LogIn, Lock, Mail } from 'lucide-react-native';
+import { Link, router } from 'expo-router';
+import { supabase } from '@/lib/superbase';
 
 export default function LoginScreen() {
-  const { signIn, isLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +27,22 @@ export default function LoginScreen() {
         return;
       }
       
-      await signIn(email);
+      const { error, data } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        setError(error.message);
+        alert(error.message);
+        return;
+      }
+
+      if (data) {
+        alert('Login successful');
+        router.replace('/(app)');
+      }
+
     } catch (error) {
       setError((error as Error).message || 'Login failed. Please try again.');
     }
@@ -82,15 +96,22 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={styles.button}
               onPress={handleLogin}
-              disabled={isLoading}
+              
             >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text style={styles.buttonText}>Sign In</Text>
-              )}
+              <Text style={styles.buttonText}>Sign In</Text>
             </TouchableOpacity>
           </View>
+          
+
+          <View style={styles.linkContainer}>
+              <Text style={styles.linkText}>Already have an account? </Text>
+              <Link href="/(auth)/signup" asChild>
+                <TouchableOpacity>
+                  <Text style={styles.link}>Sign Up</Text>
+                </TouchableOpacity>
+              </Link>
+            </View>
+            
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -170,6 +191,23 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#EF4444',
     fontFamily: 'Inter-Medium',
+    fontSize: 14,
+  },
+
+  linkContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  linkText: {
+    color: '#8F8F8F',
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+  },
+  link: {
+    color: '#2563EB',
+    fontFamily: 'Inter-SemiBold',
     fontSize: 14,
   },
 });

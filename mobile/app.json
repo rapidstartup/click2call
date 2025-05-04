@@ -1,48 +1,71 @@
 {
   "expo": {
-    "name": "Click2Call.ai",
+    "name": "Click2Call",
     "slug": "click2call-mobile",
     "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "click2call",
-    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "orientation": "portrait",
+    "scheme": "click2call",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.click2call.mobile",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "voip",
-          "audio"
-        ]
+        "NSCameraUsageDescription": "Click2Call requires camera access in order to capture and transmit video",
+        "NSMicrophoneUsageDescription": "Click2Call requires microphone access in order to capture and transmit audio"
       }
+    
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png"
+        "backgroundColor": "#ffffff"
       },
+      "package": "com.click2call.mobile",
       "permissions": [
-        "android.permission.RECORD_AUDIO",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+        ]
     },
-    "web": {
-      "bundler": "metro",
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
-    },
+    "web": {},
     "plugins": [
-      "expo-router",
+      "expo-router", 
+      "expo-secure-store",
       [
-        "expo-av",
+        "expo-build-properties",
         {
-          "microphonePermission": "Allow Click2Call.ai to access your microphone."
+          "android": {
+            "minSdkVersion": 24
+          }
         }
       ],
-      "expo-secure-store"
+      "@stream-io/video-react-native-sdk",
+      [
+        "@config-plugins/react-native-webrtc",
+        {
+          "cameraPermission": "Click2Call requires camera access in order to capture and transmit video",
+          "microphonePermission": "Click2Call requires microphone access in order to capture and transmit audio"
+        }
+      ],
+      [
+        "react-native-permissions",
+        {
+          "iosPermissions": [
+            "Camera",
+            "Microphone"
+          ]
+        }
+      ]
     ],
+    
     "experiments": {
-      "typedRoutes": true
+      "newArchEnabled": true
     }
   }
 }

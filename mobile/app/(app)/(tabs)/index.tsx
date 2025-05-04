@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
-import { fetchWidgets } from '@/services/api';
+import { StyleSheet, View, Text, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Widget } from '@/types/widget';
 import WidgetCard from '@/components/WidgetCard';
-import { LayoutGrid } from 'lucide-react-native';
-import { useAuth } from '@/contexts/AuthContext';
+import CreateWidgetModal from '@/components/CreateWidgetModal';
+import WidgetShareModal from '@/components/WidgetShareModal';
+import { LayoutGrid, Plus } from 'lucide-react-native';
+import { useAuth } from '@/lib/context/AuthContext';
+import { fetchWidgets, createWidget } from '@/lib/api/widgets';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -12,6 +14,9 @@ export default function DashboardScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedWidget, setSelectedWidget] = useState<Widget | null>(null);
 
   // Load widgets on component mount
   useEffect(() => {
@@ -33,7 +38,6 @@ export default function DashboardScreen() {
     }
   };
 
-  // Handle pull-to-refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await loadWidgets();
@@ -47,7 +51,6 @@ export default function DashboardScreen() {
       )
     );
   };
-
   // Toggle widget route to app setting
   const handleToggleRouteToApp = (id: string, routeToApp: boolean) => {
     setWidgets(prevWidgets =>
@@ -55,6 +58,25 @@ export default function DashboardScreen() {
         widget.id === id ? { ...widget, routeToApp } : widget
       )
     );
+  };
+
+  // Handle widget creation
+  const handleCreateWidget = async (widgetData: Partial<Widget>) => {
+    try {
+      setError(null);
+      const newWidget = await createWidget(widgetData);
+      setWidgets(prevWidgets => [...prevWidgets, newWidget]);
+      setCreateModalVisible(false);
+    } catch (error) {
+      console.error('Error creating widget:', error);
+      setError('Failed to create widget. Please try again.');
+    }
+  };
+
+  // Handle widget sharing
+  const handleShareWidget = (widget: Widget) => {
+    setSelectedWidget(widget);
+    setShareModalVisible(true);
   };
 
   // Calculate summary statistics
@@ -66,7 +88,7 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Dashboard</Text>
         <Text style={styles.headerSubtitle}>
-          Welcome back, {user?.name || 'User'}
+          Welcome back, {user?.email}
         </Text>
       </View>
 
@@ -90,7 +112,15 @@ export default function DashboardScreen() {
 
       {/* Widgets list */}
       <View style={styles.widgetsContainer}>
-        <Text style={styles.sectionTitle}>Your Widgets</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your Widgets</Text>
+          <TouchableOpacity 
+            style={styles.addButton}
+            onPress={() => setCreateModalVisible(true)}
+          >
+            <Plus size={18} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
         
         {isLoading ? (
           <View style={styles.loaderContainer}>
@@ -105,8 +135,14 @@ export default function DashboardScreen() {
             <LayoutGrid size={48} color="#6B7280" />
             <Text style={styles.emptyText}>No widgets found</Text>
             <Text style={styles.emptySubtext}>
-              Your widgets will appear here once created
+              Create a widget to get started
             </Text>
+            <TouchableOpacity 
+              style={styles.createButton}
+              onPress={() => setCreateModalVisible(true)}
+            >
+              <Text style={styles.createButtonText}>Create Widget</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <ScrollView
@@ -127,11 +163,26 @@ export default function DashboardScreen() {
                 widget={widget}
                 onToggleActive={handleToggleActive}
                 onToggleRouteToApp={handleToggleRouteToApp}
+                onShare={handleShareWidget}
               />
             ))}
           </ScrollView>
         )}
       </View>
+
+      {/* Create Widget Modal */}
+      <CreateWidgetModal
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSave={handleCreateWidget}
+      />
+
+      {/* Share Widget Modal */}
+      <WidgetShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        widget={selectedWidget}
+      />
     </View>
   );
 }
@@ -188,11 +239,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 18,
     color: '#FFFFFF',
-    marginBottom: 16,
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563EB',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollContent: {
     paddingBottom: 20,
@@ -234,5 +298,17 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginTop: 8,
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  createButton: {
+    backgroundColor: '#2563EB',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  createButtonText: {
+    fontFamily: 'Inter-Medium',
+    fontSize: 16,
+    color: '#FFFFFF',
   },
 });

@@ -9,7 +9,8 @@ import {
   Alert,
   Platform
 } from 'react-native';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/lib/context/AuthContext';
+import { router } from 'expo-router';
 import { 
   Bell, 
   Moon, 
@@ -19,24 +20,34 @@ import {
   ChevronRight, 
   User
 } from 'lucide-react-native';
-
+import { supabase } from '@/lib/superbase';
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [darkModeEnabled, setDarkModeEnabled] = useState(true);
   const [autoAnswerEnabled, setAutoAnswerEnabled] = useState(false);
   const [useSpeakerphoneEnabled, setUseSpeakerphoneEnabled] = useState(false);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    const performSignOut = async () => {
+      await supabase.auth.signOut();
+      // Navigate to login screen after signing out
+      router.replace('/(auth)/login');
+    };
+
     if (Platform.OS === 'web') {
-      signOut();
+      performSignOut();
     } else {
       Alert.alert(
         'Sign Out', 
         'Are you sure you want to sign out?',
         [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Sign Out', style: 'destructive', onPress: () => signOut() }
+          { 
+            text: 'Sign Out', 
+            style: 'destructive', 
+            onPress: performSignOut 
+          }
         ]
       );
     }
@@ -55,11 +66,10 @@ export default function SettingsScreen() {
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
               <Text style={styles.avatarText}>
-                {user?.name?.charAt(0) || 'U'}
+                {user?.email?.charAt(0) || 'U'}
               </Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name || 'User'}</Text>
               <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
             </View>
             <TouchableOpacity style={styles.profileButton}>

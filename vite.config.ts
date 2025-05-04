@@ -7,4 +7,14 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3002', // Make sure this matches your server port
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
+    },
+  },
 });

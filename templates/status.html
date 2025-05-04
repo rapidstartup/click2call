@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Click2Call Server Status</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .status-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online {
+            background: #4CAF50;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .metric:last-child {
+            border-bottom: none;
+        }
+        .metric-label {
+            color: #666;
+        }
+        .metric-value {
+            font-weight: 500;
+        }
+        .refresh-button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .refresh-button:hover {
+            background: #1976D2;
+        }
+    </style>
+</head>
+<body>
+    <div class="status-card">
+        <div class="header">
+            <h1>
+                <span class="status-indicator status-online"></span>
+                Click2Call Server Status
+            </h1>
+            <button class="refresh-button" onclick="refreshStats()">Refresh</button>
+        </div>
+        <div id="stats-container">
+            Loading...
+        </div>
+    </div>
+
+    <script>
+        function formatDuration(seconds) {
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const remainingSeconds = seconds % 60;
+
+            const parts = [];
+            if (days > 0) parts.push(`${days}d`);
+            if (hours > 0) parts.push(`${hours}h`);
+            if (minutes > 0) parts.push(`${minutes}m`);
+            if (remainingSeconds > 0 || parts.length === 0) parts.push(`${remainingSeconds}s`);
+
+            return parts.join(' ');
+        }
+
+        function formatTime(isoString) {
+            if (!isoString) return 'Never';
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        }
+
+        function updateStats(stats) {
+            const metricsHtml = `
+                <div class="metric">
+                    <span class="metric-label">Active Connections</span>
+                    <span class="metric-value">${stats.activeConnections}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Connections</span>
+                    <span class="metric-value">${stats.totalConnections}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Last Connection</span>
+                    <span class="metric-value">${formatTime(stats.lastConnection)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Last Disconnection</span>
+                    <span class="metric-value">${formatTime(stats.lastDisconnection)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Uptime</span>
+                    <span class="metric-value">${formatDuration(stats.uptime)}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Environment</span>
+                    <span class="metric-value">${stats.environment}</span>
+                </div>
+            `;
+            document.getElementById('stats-container').innerHTML = metricsHtml;
+        }
+
+        async function refreshStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                updateStats(stats);
+            } catch (error) {
+                console.error('Failed to fetch stats:', error);
+                document.getElementById('stats-container').innerHTML = 'Failed to load stats';
+            }
+        }
+
+        // Initial load
+        refreshStats();
+
+        // Auto-refresh every 5 seconds
+        setInterval(refreshStats, 5000);
+    </script>
+</body>
+</html>
