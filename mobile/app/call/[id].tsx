@@ -1,4 +1,4 @@
-import { View, Text, ActivityIndicator, Alert } from 'react-native'
+import { View, Text, ActivityIndicator, Alert, StyleSheet } from 'react-native'
 import React, { useEffect, useState } from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { GestureHandlerRootView } from 'react-native-gesture-handler'
@@ -10,42 +10,26 @@ import {
   StreamVideo,
   StreamVideoClient,
   CallContent,
-  CallControls,
-  ToggleAudioPublishingButton,
-  HangUpCallButton,
+  ParticipantLabelProps,
 } from '@stream-io/video-react-native-sdk'
-import { router, useLocalSearchParams, useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useAuth } from '@/lib/context/AuthContext'
+import CustomControls from '@/components/customControls'
 
 const apiKey = process.env.EXPO_PUBLIC_GET_STREAM_API_KEY!;
 
-const CustomCallControls = () => {
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 20 }}>
-      <ToggleAudioPublishingButton />
-      <HangUpCallButton  onHangupCallHandler={() => {
-        console.log('Call ended');
-        router.back();
-      }} />
-    </View>
-  );
-};
 
-const AudioOnlyCallContent = ({ onHangupCallHandler }: { onHangupCallHandler: () => void }) => {
-  return (
-    <CallContent 
-      onHangupCallHandler={onHangupCallHandler}
-      CallControls={CustomCallControls}
-      initialInCallManagerAudioMode="audio"
-    />
-  );
-};
 
 const CallComponent = ({ id }: { id: string }) => {
   const [call, setCall] = useState<Call | null>(null)
   const client = useStreamVideoClient()
   const router = useRouter()
   const [isJoining, setIsJoining] = useState(true)
+
+  const CustomParticipantLabel = ({ participant }: ParticipantLabelProps) => {
+    const participantLabel = participant?.name ?? participant?.audioLevel;
+    return <Text style={styles.label}>{participantLabel}</Text>;
+  };
   
   useEffect(() => {
     const setupCall = async () => {
@@ -119,12 +103,14 @@ const CallComponent = ({ id }: { id: string }) => {
     <StreamCall call={call}>
       <SafeAreaView style={{flex: 1, backgroundColor: '#121212'}}>
         <View style={{flex: 1}}>
-          <AudioOnlyCallContent 
-            onHangupCallHandler={() => {
-              call?.leave();
-              router.back();
-            }}
-          />
+        <CallContent 
+        ParticipantLabel={CustomParticipantLabel}
+      CallControls={() => <CustomControls  onHangupCallHandler={() => {
+        call?.endCall();
+        router.push('/(app)');
+      }} />}
+      initialInCallManagerAudioMode="audio"
+    />
         </View>
       </SafeAreaView>
     </StreamCall>
@@ -197,3 +183,13 @@ export default function CallScreen() {
     </StreamVideo>
   );
 }
+
+
+const styles = StyleSheet.create({
+  label: {
+    color: 'white',
+    backgroundColor: "gray",
+
+    fontSize: 16,
+  },
+});

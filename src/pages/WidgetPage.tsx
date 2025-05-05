@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useStreamVideoClient, StreamCall, Call, SpeakerLayout, StreamTheme, CancelCallButton, SpeakingWhileMutedNotification, ToggleAudioPublishingButton } from '@stream-io/video-react-sdk';
+import { useStreamVideoClient, StreamCall, Call, SpeakerLayout, StreamTheme, CancelCallButton, SpeakingWhileMutedNotification, ToggleAudioPublishingButton, useParticipantViewContext } from '@stream-io/video-react-sdk';
 import axios from 'axios';
 import "@stream-io/video-react-sdk/dist/css/styles.css";
-// ideally, Stream Video theme should be imported before your own styles
-// as this would make it easier for you to override certain video-theme rules
 
 interface Widget {
   id: string;
@@ -41,6 +39,7 @@ const WidgetPage: React.FC = () => {
       </SpeakingWhileMutedNotification>
       <CancelCallButton onLeave={() => {
         console.log('Call ended');
+        call?.endCall();
         setCall(null);
       }} />
     </div>
@@ -78,10 +77,12 @@ const WidgetPage: React.FC = () => {
       const callId = `widget-${widget.id}-${Date.now()}`;
       console.log("Creating call with ID:", callId);
       
+      setLoading(true);
       // Create and join the call
       const newCall = client.call('default', callId);
 
       // Create the call with members
+      
       await newCall.getOrCreate({
         data: {
           members: [{
@@ -109,7 +110,7 @@ const WidgetPage: React.FC = () => {
 
       // Ring the call
       await newCall.notify();
-      await newCall.ring();
+      // await newCall.ring();
       console.log("Call notification sent");
 
       // Join the call
@@ -124,6 +125,7 @@ const WidgetPage: React.FC = () => {
       console.log("Joined call as host");
       
       setCall(newCall);
+      setLoading(false);
     } catch (err: any) {
       console.error("Error in startCall:", err);
       setError('Failed to start call: ' + err.message);
@@ -132,13 +134,30 @@ const WidgetPage: React.FC = () => {
 
  
 
-  if (loading) {
-    return <div>Loading...</div>;
-  }
+  
 
   if (error) {
-    return <div>Error: {error}</div>;
+    return <div className='text-red-500 bg-white p-4 rounded-xl shadow-md w-full max-w-md flex flex-col justify-center items-center'>Error: {error}
+    contact support
+    </div>;
   }
+  const CustomParticipantViewUIBar = () => {
+    const { participant } = useParticipantViewContext();
+    return (
+      <div className="bar-participant-name">
+        {participant.name}
+      </div>
+    );
+  };
+  
+  const CustomParticipantViewUISpotlight = () => {
+    const { participant } = useParticipantViewContext();
+    return (
+      <div className="spotlight-participant-name">
+        {participant.audioLevel}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50">
@@ -150,8 +169,9 @@ const WidgetPage: React.FC = () => {
         {call ? (
           <div>
             <StreamCall call={call}>
-              <StreamTheme as="main" className="bg-white text-black p-2">
-                <SpeakerLayout />
+              <StreamTheme  as="main">
+                <SpeakerLayout  ParticipantViewUIBar={CustomParticipantViewUIBar} ParticipantViewUISpotlight={CustomParticipantViewUISpotlight}
+ />
                 <CustomCallControls />
               </StreamTheme>
               {/* <button 
@@ -164,12 +184,15 @@ const WidgetPage: React.FC = () => {
           </div>
         ) : (
           <button
-            onClick={startCall}
-            disabled={!widget || loading}
-            className="bg-blue-500 text-white px-4 py-2 rounded-md w-full"
-          >
-            Start Call
-          </button>
+          onClick={startCall}
+          disabled={loading}
+          className="w-full px-5 py-2.5 rounded-lg text-white font-semibold 
+                     bg-blue-600 hover:bg-blue-700 focus:ring-4 focus:ring-blue-300 
+                     transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Initializing...' : 'Start Call'}
+        </button>
+        
         )}
       </div>
     </div>

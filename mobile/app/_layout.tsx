@@ -7,12 +7,7 @@ import { SplashScreen } from 'expo-router';
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { AuthProvider, useAuth } from '@/lib/context/AuthContext';
 import {
-  StreamVideo,
   StreamVideoClient,
-  User,
-  LogLevel,
-  Call,
-  CallRingEvent,
   StreamVideoEvent
 } from "@stream-io/video-react-native-sdk";
 import { Alert, Platform } from 'react-native';
