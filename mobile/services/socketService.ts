@@ -20,16 +20,17 @@ class SocketService {
         throw new Error('No authentication token found');
       }
       
-      this.socket = io(SOCKET_URL, {
+      const socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['websocket'],
       });
+      this.socket = socket;
 
-      this.socket.on('connect', () => {
+      socket.on('connect', () => {
         console.log('Socket connected');
         // Register device for VOIP
         if (Platform.OS !== 'web') {
-          this.socket.emit('register_device', { 
+          socket.emit('register_device', {
             deviceType: Platform.OS,
             deviceToken: 'device-token-placeholder' // In production, this would be an actual device token
           });
