@@ -2,6 +2,11 @@ import { Server as SocketServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { config } from './config';
 import { supabase } from './db';
+import type {
+  CallSignal,
+  ClientToServerEvents,
+  ServerToClientEvents,
+} from '../shared/socketProtocol';
 
 // Track server statistics
 export interface ServerStats {
@@ -40,12 +45,6 @@ export function getServerStats(): ServerStats {
   return { ...stats };
 }
 
-interface SignalData {
-  type: string;
-  timestamp?: number;
-  widgetId?: string;
-}
-
 export function setupSocketServer(httpServer: HttpServer) {
   console.log('Setting up Socket.IO server with detailed config:', {
     cors: config.cors,
@@ -54,7 +53,7 @@ export function setupSocketServer(httpServer: HttpServer) {
     nodeEnv: process.env.NODE_ENV
   });
 
-  const io = new SocketServer(httpServer, {
+  const io = new SocketServer<ClientToServerEvents, ServerToClientEvents>(httpServer, {
     cors: {
       origin: '*',  // Allow all origins for the widget
       methods: ['GET', 'POST'],
@@ -114,7 +113,7 @@ export function setupSocketServer(httpServer: HttpServer) {
     console.log("Client connected:", clientInfo);
 
     // Handle call signaling
-    socket.on("signal", async (data: SignalData) => {
+    socket.on("signal", async (data: CallSignal) => {
       console.log("Signal received from", socket.id, ":", data);
       
       if (data.type === 'call-start' && data.widgetId) {
@@ -163,12 +162,37 @@ export function setupSocketServer(httpServer: HttpServer) {
         
         // Find and remove the call session
         for (const [callId, session] of activeCalls.entries()) {
+          if (data.callId && callId !== data.callId) continue;
+
           if (session.participants.includes(socket.id)) {
             activeCalls.delete(callId);
-            socket.emit('call-ended');
+            socket.emit('call-ended', callId);
             break;
           }
         }
+      } else if (
+        (data.type === 'call-answer' || data.type === 'call-reject' || data.type === 'call-mute') &&
+        !activeCalls.has(data.callId)
+      ) {
+        socket.emit('call-status', {
+          status: 'error',
+          message: 'Call not found'
+        });
+      } else if (data.type === 'call-answer') {
+        socket.emit('call-status', {
+          status: 'answered',
+          message: 'Call answered'
+        });
+      } else if (data.type === 'call-reject') {
+        socket.emit('call-status', {
+          status: 'rejected',
+          message: 'Call rejected'
+        });
+      } else if (data.type === 'call-mute') {
+        socket.emit('call-status', {
+          status: 'muted',
+          message: data.muted ? 'Call muted' : 'Call unmuted'
+        });
       }
     });
 

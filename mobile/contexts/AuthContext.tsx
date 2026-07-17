@@ -1,12 +1,8 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
-
-type User = {
-  id: string;
-  email: string;
-  name: string;
-};
+import { User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { registerDeviceForPushNotifications } from '@/services/notifications';
 
 type AuthContextType = {
   user: User | null;
@@ -30,51 +26,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Check for stored credentials on app start
   useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const userJson = await SecureStore.getItemAsync('user');
-        const tokenStr = await SecureStore.getItemAsync('token');
-        
-        if (userJson && tokenStr) {
-          setUser(JSON.parse(userJson));
-          router.replace('/(app)/(tabs)/');
-        } else {
-          router.replace('/(auth)/login');
-        }
-      } catch (error) {
-        console.error('Failed to load auth state:', error);
-      } finally {
+    if (!user) return;
+
+    registerDeviceForPushNotifications().catch((error) => {
+      console.error('Failed to register push notifications:', error);
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        throw error;
+      }
+
+      if (!isMounted) return;
+
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+
+      router.replace(session ? '/(app)/(tabs)/' : '/(auth)/login');
+    }).catch((error) => {
+      console.error('Failed to load auth state:', error);
+      if (isMounted) {
+        setUser(null);
         setIsLoading(false);
       }
-    };
+    });
 
-    loadUser();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (isMounted) {
+        setUser(session?.user ?? null);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
     try {
       setIsLoading(true);
-      
-      // Normally we'd make an API call here
-      // For now, we'll simulate a successful login with mock data
-      const mockResponse = {
-        user: {
-          id: '123456',
-          email: email,
-          name: 'Demo User',
-        },
-        token: 'mock-jwt-token',
-      };
-      
-      // Store the user data and token in secure storage
-      await SecureStore.setItemAsync('user', JSON.stringify(mockResponse.user));
-      await SecureStore.setItemAsync('token', mockResponse.token);
-      
-      setUser(mockResponse.user);
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+
+      setUser(data.user);
       router.replace('/(app)/(tabs)/');
     } catch (error) {
       console.error('Sign in failed:', error);
-      throw new Error('Authentication failed. Please check your credentials.');
+      throw error instanceof Error
+        ? error
+        : new Error('Authentication failed. Please check your credentials.');
     } finally {
       setIsLoading(false);
     }
@@ -83,8 +89,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       setIsLoading(true);
-      await SecureStore.deleteItemAsync('user');
-      await SecureStore.deleteItemAsync('token');
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+
       setUser(null);
       router.replace('/(auth)/login');
     } catch (error) {

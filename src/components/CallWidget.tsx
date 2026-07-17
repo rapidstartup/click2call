@@ -3,16 +3,10 @@ import { Phone } from 'lucide-react';
 import io, { Socket } from 'socket.io-client';
 import { AudioSettings } from './AudioSettings';
 import Vapi from '@vapi-ai/web';
-
-interface SignalData {
-  type: string;
-  timestamp?: number;
-  widgetId?: string;
-  vapiConfig?: {
-    apiKey: string;
-    assistantId: string;
-  };
-}
+import type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+} from '../../shared/socketProtocol';
 
 interface CallWidgetProps {
   widgetId: string;
@@ -56,7 +50,7 @@ console.log('Is Secure:', isSecure);
 console.log('Protocol:', window.location.protocol);
 
 const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const [socket, setSocket] = useState<Socket<ServerToClientEvents, ClientToServerEvents> | null>(null);
   const [status, setStatus] = useState<string>('Ready');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
@@ -86,7 +80,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       timestamp: new Date().toISOString()
     });
 
-    const newSocket = io(SOCKET_SERVER_URL, socketOptions);
+    const newSocket: Socket<ServerToClientEvents, ClientToServerEvents> = io(SOCKET_SERVER_URL, socketOptions);
 
     // Debug transport state using socket.io events
     newSocket.on("connect_error", (error) => {
@@ -162,7 +156,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       setIsConnected(false);
     });
 
-    newSocket.on('error', (error) => {
+    newSocket.on('connect_error', (error: Error) => {
       console.error('Socket error:', {
         error: error.toString(),
         stack: error instanceof Error ? error.stack : undefined,
@@ -170,13 +164,6 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       });
       setStatus('Connection error occurred');
       setIsConnected(false);
-    });
-
-    newSocket.on('signal', (data: SignalData) => {
-      console.log('Signal received:', {
-        data,
-        timestamp: new Date().toISOString()
-      });
     });
 
     // Handle call status updates

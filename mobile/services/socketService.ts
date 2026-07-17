@@ -1,58 +1,57 @@
 import { io, Socket } from 'socket.io-client';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
+import type {
+  CallSignal,
+  ClientToServerEvents,
+  ServerToClientEvents,
+} from '../../shared/socketProtocol';
 
-const SOCKET_URL = 'https://io.click2call.ai';
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'https://io.click2call.ai';
 
 class SocketService {
-  private socket: Socket | null = null;
+  private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
   private callbacks: {
-    onIncomingCall?: (callData: any) => void;
     onCallEnded?: (callId: string) => void;
     onError?: (error: any) => void;
   } = {};
 
   async init() {
     try {
-      const token = await SecureStore.getItemAsync('token');
-      
-      if (!token) {
-        throw new Error('No authentication token found');
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error || !session?.access_token) {
+        throw new Error('No authenticated Supabase session found');
       }
-      
+
       this.socket = io(SOCKET_URL, {
-        auth: { token },
+        auth: { token: session.access_token },
         transports: ['websocket'],
       });
 
       this.socket.on('connect', () => {
         console.log('Socket connected');
-        // Register device for VOIP
-        if (Platform.OS !== 'web') {
-          this.socket.emit('register_device', { 
-            deviceType: Platform.OS,
-            deviceToken: 'device-token-placeholder' // In production, this would be an actual device token
-          });
-        }
       });
 
       this.socket.on('disconnect', () => {
         console.log('Socket disconnected');
       });
 
-      this.socket.on('error', (error) => {
+      this.socket.on('connect_error', (error: Error) => {
         console.error('Socket error:', error);
         this.callbacks.onError?.(error);
       });
 
-      this.socket.on('incoming_call', (callData) => {
-        console.log('Incoming call:', callData);
-        this.callbacks.onIncomingCall?.(callData);
+      this.socket.on('call-ended', (callId) => {
+        console.log('Call ended:', callId);
+        if (callId) {
+          this.callbacks.onCallEnded?.(callId);
+        }
       });
 
-      this.socket.on('call_ended', (callId) => {
-        console.log('Call ended:', callId);
-        this.callbacks.onCallEnded?.(callId);
+      this.socket.on('call-status', (status) => {
+        if (status.status === 'error') {
+          this.callbacks.onError?.(new Error(status.message));
+        }
       });
 
     } catch (error) {
@@ -68,10 +67,6 @@ class SocketService {
     }
   }
 
-  onIncomingCall(callback: (callData: any) => void) {
-    this.callbacks.onIncomingCall = callback;
-  }
-
   onCallEnded(callback: (callId: string) => void) {
     this.callbacks.onCallEnded = callback;
   }
@@ -80,36 +75,28 @@ class SocketService {
     this.callbacks.onError = callback;
   }
 
-  answerCall(callId: string) {
+  private sendSignal(signal: CallSignal) {
     if (!this.socket) {
-      console.error('Socket not connected');
-      return;
+      throw new Error('Socket not connected');
     }
-    this.socket.emit('answer_call', { callId });
+
+    this.socket.emit('signal', signal);
+  }
+
+  answerCall(callId: string) {
+    this.sendSignal({ type: 'call-answer', callId, timestamp: Date.now() });
   }
 
   rejectCall(callId: string) {
-    if (!this.socket) {
-      console.error('Socket not connected');
-      return;
-    }
-    this.socket.emit('reject_call', { callId });
+    this.sendSignal({ type: 'call-reject', callId, timestamp: Date.now() });
   }
 
   endCall(callId: string) {
-    if (!this.socket) {
-      console.error('Socket not connected');
-      return;
-    }
-    this.socket.emit('end_call', { callId });
+    this.sendSignal({ type: 'call-end', callId, timestamp: Date.now() });
   }
 
   muteCall(callId: string, muted: boolean) {
-    if (!this.socket) {
-      console.error('Socket not connected');
-      return;
-    }
-    this.socket.emit('mute_call', { callId, muted });
+    this.sendSignal({ type: 'call-mute', callId, muted, timestamp: Date.now() });
   }
 }
 

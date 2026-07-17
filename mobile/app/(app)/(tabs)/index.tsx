@@ -66,7 +66,7 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Dashboard</Text>
         <Text style={styles.headerSubtitle}>
-          Welcome back, {user?.name || 'User'}
+          Welcome back, {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
         </Text>
       </View>
 

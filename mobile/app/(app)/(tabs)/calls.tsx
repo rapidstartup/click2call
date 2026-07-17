@@ -28,12 +28,6 @@ export default function CallsScreen() {
         // Set up socket event handlers
         const socketService = require('@/services/socketService').default;
         
-        socketService.onIncomingCall((callData: any) => {
-          console.log('Incoming call received', callData);
-          setIncomingCall(callData);
-          setShowIncomingCall(true);
-        });
-        
         socketService.onCallEnded((callId: string) => {
           if (activeCall && activeCall.id === callId) {
             setActiveCall(null);
