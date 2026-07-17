@@ -13,7 +13,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 // Create a new widget
-router.post('/', authenticateUser, async (req: AuthenticatedRequest, res) => {
+router.post('/', authenticateUser, async (req: AuthenticatedRequest, res): Promise<void> => {
   try {
     const { data: widget, error } = await supabase
       .from('widgets')
@@ -32,7 +32,7 @@ router.post('/', authenticateUser, async (req: AuthenticatedRequest, res) => {
 });
 
 // Configure Twilio webhooks for a widget
-router.post('/:id/configure-twilio-webhooks', authenticateUser, async (req: AuthenticatedRequest, res) => {
+router.post('/:id/configure-twilio-webhooks', authenticateUser, async (req: AuthenticatedRequest, res): Promise<void> => {
   const { id } = req.params;
   const { sipDomain, accountSid, authToken } = req.body;
 
@@ -46,7 +46,8 @@ router.post('/:id/configure-twilio-webhooks', authenticateUser, async (req: Auth
       .single();
 
     if (error || !widget) {
-      return res.status(404).json({ error: 'Widget not found' });
+      res.status(404).json({ error: 'Widget not found' });
+      return;
     }
 
     // Initialize Twilio client with user's credentials
@@ -70,4 +71,4 @@ router.post('/:id/configure-twilio-webhooks', authenticateUser, async (req: Auth
   }
 });
 
-export default router; 
+export default router;

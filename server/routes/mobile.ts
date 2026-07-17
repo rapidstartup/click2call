@@ -9,7 +9,7 @@ interface AuthRequest extends Request {
 const router = Router();
 
 // Register/update mobile device
-router.post('/devices', authenticateUser, async (req: AuthRequest, res: Response) => {
+router.post('/devices', authenticateUser, async (req: AuthRequest, res: Response): Promise<void> => {
   const { deviceToken, deviceName, platform, appVersion } = req.body;
   const userId = req.user.id;
 
@@ -37,7 +37,7 @@ router.post('/devices', authenticateUser, async (req: AuthRequest, res: Response
 });
 
 // Get user's widgets
-router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response) => {
+router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response): Promise<void> => {
   const userId = req.user.id;
 
   try {
@@ -70,7 +70,7 @@ router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response)
 });
 
 // Update device status for a widget
-router.post('/widgets/:widgetId/route', authenticateUser, async (req: AuthRequest, res: Response) => {
+router.post('/widgets/:widgetId/route', authenticateUser, async (req: AuthRequest, res: Response): Promise<void> => {
   const { widgetId } = req.params;
   const { deviceId, status } = req.body;
   const userId = req.user.id;
@@ -85,7 +85,8 @@ router.post('/widgets/:widgetId/route', authenticateUser, async (req: AuthReques
       .single();
 
     if (widgetError || !widget) {
-      return res.status(404).json({ error: 'Widget not found' });
+      res.status(404).json({ error: 'Widget not found' });
+      return;
     }
 
     // Update or create route
@@ -110,7 +111,7 @@ router.post('/widgets/:widgetId/route', authenticateUser, async (req: AuthReques
 });
 
 // Device heartbeat endpoint
-router.post('/heartbeat', authenticateUser, async (req: AuthRequest, res: Response) => {
+router.post('/heartbeat', authenticateUser, async (req: AuthRequest, res: Response): Promise<void> => {
   const { deviceToken } = req.body;
   const userId = req.user.id;
 
@@ -128,4 +129,4 @@ router.post('/heartbeat', authenticateUser, async (req: AuthRequest, res: Respon
   }
 });
 
-export default router; 
+export default router;
