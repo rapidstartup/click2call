@@ -21,6 +21,7 @@ router.post('/', authenticateUser, async (req: AuthenticatedRequest, res) => {
         ...req.body,
         user_id: req.user.id
       })
+      .select()
       .single();
 
     if (error) throw error;
@@ -70,4 +71,4 @@ router.post('/:id/configure-twilio-webhooks', authenticateUser, async (req: Auth
   }
 });
 
-export default router; 
+export default router;
