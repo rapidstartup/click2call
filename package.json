@@ -6,8 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:server": "tsc -p server/tsconfig.json",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npm run build:server && npm run test:unit:run && npm run test:integration:run && npm run test:e2e:run",
+    "test:unit": "npm run build:server && npm run test:unit:run",
+    "test:unit:run": "node --test tests/unit/*.test.cjs",
+    "test:integration": "npm run build:server && npm run test:integration:run",
+    "test:integration:run": "node --test tests/integration/*.test.cjs",
+    "test:e2e": "npm run build:server && npm run test:e2e:run",
+    "test:e2e:run": "node --test tests/e2e/*.test.cjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
@@ -23,7 +31,8 @@
     "react-router-dom": "^6.22.2",
     "recharts": "^2.15.1",
     "socket.io": "^4.7.4",
-    "socket.io-client": "^4.7.4"
+    "socket.io-client": "^4.7.4",
+    "twilio": "^5.4.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

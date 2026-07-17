@@ -52,14 +52,15 @@ const validateTwilioRequest = async (req: TwilioRequest, widgetId: string) => {
 };
 
 // Handle incoming voice calls
-router.post('/voice/:widgetId', async (req: TwilioRequest, res) => {
+router.post('/voice/:widgetId', async (req: TwilioRequest, res): Promise<void> => {
   const { widgetId } = req.params;
 
   try {
     // Validate the request is from Twilio
     const isValid = await validateTwilioRequest(req, widgetId);
     if (!isValid) {
-      return res.status(403).send('Invalid Twilio request');
+      res.status(403).send('Invalid Twilio request');
+      return;
     }
 
     // Get widget details
@@ -70,7 +71,8 @@ router.post('/voice/:widgetId', async (req: TwilioRequest, res) => {
       .single();
 
     if (error || !widget) {
-      return res.status(404).send('Widget not found');
+      res.status(404).send('Widget not found');
+      return;
     }
 
     const twiml = new twilio.twiml.VoiceResponse();
@@ -97,14 +99,15 @@ router.post('/voice/:widgetId', async (req: TwilioRequest, res) => {
 });
 
 // Handle call status updates
-router.post('/status/:widgetId', async (req: TwilioRequest, res) => {
+router.post('/status/:widgetId', async (req: TwilioRequest, res): Promise<void> => {
   const { widgetId } = req.params;
 
   try {
     // Validate the request is from Twilio
     const isValid = await validateTwilioRequest(req, widgetId);
     if (!isValid) {
-      return res.status(403).send('Invalid Twilio request');
+      res.status(403).send('Invalid Twilio request');
+      return;
     }
 
     // Log call status
@@ -152,4 +155,4 @@ function handleRoute(twiml: twilio.twiml.VoiceResponse, route: string) {
   }
 }
 
-export default router; 
+export default router;
