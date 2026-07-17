@@ -35,6 +35,27 @@ interface CallSession {
 
 const activeCalls = new Map<string, CallSession>();
 
+const REDACTED = '[REDACTED]';
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'proxy-authorization',
+  'x-api-key',
+  'x-auth-token',
+  'x-access-token'
+]);
+
+const redactHeaders = (headers: Record<string, unknown>) =>
+  Object.fromEntries(
+    Object.entries(headers).map(([name, value]) => [
+      name,
+      SENSITIVE_HEADERS.has(name.toLowerCase()) ? REDACTED : value
+    ])
+  );
+
+const redactHandshakeUrl = (url?: string) => url?.split('?')[0];
+
 export function getServerStats(): ServerStats {
   stats.uptime = Math.floor((Date.now() - stats.startTime) / 1000);
   return { ...stats };
@@ -74,8 +95,8 @@ export function setupSocketServer(httpServer: HttpServer) {
     },
     allowRequest: (req, callback) => {
       console.log('Socket.IO handshake request:', {
-        headers: req.headers,
-        url: req.url,
+        headers: redactHeaders(req.headers),
+        url: redactHandshakeUrl(req.url),
         method: req.method,
         address: req.connection?.remoteAddress,
         timestamp: new Date().toISOString()
@@ -86,9 +107,9 @@ export function setupSocketServer(httpServer: HttpServer) {
 
   io.engine.on("headers", (headers, req) => {
     console.log('Socket.IO handshake headers:', {
-      requestHeaders: req.headers,
-      responseHeaders: headers,
-      url: req.url,
+      requestHeaders: redactHeaders(req.headers),
+      responseHeaders: redactHeaders(headers),
+      url: redactHandshakeUrl(req.url),
       method: req.method,
       address: req.connection.remoteAddress
     });
@@ -104,8 +125,8 @@ export function setupSocketServer(httpServer: HttpServer) {
       id: socket.id,
       origin: socket.handshake.headers.origin,
       transport: socket.conn.transport.name,
-      headers: socket.handshake.headers,
-      query: socket.handshake.query,
+      headers: redactHeaders(socket.handshake.headers),
+      query: REDACTED,
       secure: socket.handshake.secure,
       protocol: socket.handshake.headers['x-forwarded-proto'] || 'unknown',
       address: socket.handshake.address,

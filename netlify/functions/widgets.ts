@@ -7,11 +7,30 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY!
 );
 
+const REDACTED = '[REDACTED]';
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'proxy-authorization',
+  'x-api-key',
+  'x-auth-token',
+  'x-access-token'
+]);
+
+const redactHeaders = (headers: Record<string, string | undefined>) =>
+  Object.fromEntries(
+    Object.entries(headers).map(([name, value]) => [
+      name,
+      SENSITIVE_HEADERS.has(name.toLowerCase()) ? REDACTED : value
+    ])
+  );
+
 export const handler: Handler = async (event) => {
   console.log('Function invoked:', {
     path: event.path,
     httpMethod: event.httpMethod,
-    headers: event.headers,
+    headers: redactHeaders(event.headers),
   });
 
   // Enable CORS
@@ -114,4 +133,4 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ error: 'Internal server error' })
     };
   }
-}; 
+};
