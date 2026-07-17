@@ -6,9 +6,11 @@ import { config } from './config';
 import { setupSocketServer, getServerStats } from './socket';
 import mobileRoutes from './routes/mobile';
 import twilioRoutes from './routes/twilio';
+import widgetRoutes from './routes/widgets';
 
 const app = express();
 app.use(cors(config.cors));
+app.use(express.json());
 
 // Trust proxy headers since we're behind Nginx
 app.set('trust proxy', true);
@@ -62,6 +64,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Routes
 app.use('/mobile', mobileRoutes);
 app.use('/twilio', twilioRoutes);
+app.use('/api/widgets', widgetRoutes);
 
 // Create HTTP server - we'll let Nginx handle SSL
 const server = createServer(app);
