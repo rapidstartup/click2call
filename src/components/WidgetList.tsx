@@ -1,26 +1,77 @@
-import React, { useState } from 'react';
-import { Card, Button, Modal, message, Tooltip, Space } from 'antd';
-import { CopyOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Card, Button, Modal, message, Tooltip, Space, Spin } from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
 import { WidgetType } from './WidgetCreator';
+import { getAuthHeaders } from '../lib/api';
 
 interface Widget {
   id: string;
   name: string;
   type: WidgetType;
   destination: string;
-  embedCode: string;
   createdAt: string;
 }
 
-const WidgetList: React.FC = () => {
-  const [widgets, setWidgets] = useState<Widget[]>([]);
-  const [selectedWidget, setSelectedWidget] = useState<Widget | null>(null);
-  const [showEmbedCode, setShowEmbedCode] = useState(false);
+interface ApiWidget {
+  id: string;
+  name: string;
+  type: WidgetType;
+  destination: string;
+  created_at: string;
+}
 
-  const handleCopyCode = (widget: Widget) => {
-    navigator.clipboard.writeText(widget.embedCode);
-    message.success('Widget code copied to clipboard!');
-  };
+interface WidgetListProps {
+  refreshKey?: number;
+}
+
+const WidgetList: React.FC<WidgetListProps> = ({ refreshKey = 0 }) => {
+  const [widgets, setWidgets] = useState<Widget[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadWidgets = async () => {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+
+        const response = await fetch('/api/widgets', {
+          headers: await getAuthHeaders(),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to load widgets');
+        }
+
+        const data: ApiWidget[] = await response.json();
+        if (isMounted) {
+          setWidgets(data.map(widget => ({
+            id: widget.id,
+            name: widget.name,
+            type: widget.type,
+            destination: widget.destination,
+            createdAt: widget.created_at,
+          })));
+        }
+      } catch (error) {
+        if (isMounted) {
+          setLoadError(error instanceof Error ? error.message : 'Failed to load widgets');
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadWidgets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshKey]);
 
   const handleDeleteWidget = (widget: Widget) => {
     Modal.confirm({
@@ -31,25 +82,44 @@ const WidgetList: React.FC = () => {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          // TODO: Implement API call to delete widget
-          setWidgets(widgets.filter(w => w.id !== widget.id));
+          const response = await fetch(`/api/widgets/${widget.id}`, {
+            method: 'DELETE',
+            headers: await getAuthHeaders(),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to delete widget');
+          }
+
+          setWidgets(currentWidgets => currentWidgets.filter(currentWidget => currentWidget.id !== widget.id));
           message.success('Widget deleted successfully!');
-        } catch {
-          message.error('Failed to delete widget');
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : 'Failed to delete widget');
         }
       }
     });
   };
 
-  const handleShowEmbedCode = (widget: Widget) => {
-    setSelectedWidget(widget);
-    setShowEmbedCode(true);
-  };
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-8">
+        <Spin />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center p-8 bg-red-50 rounded-lg">
+        <p className="text-red-600">{loadError}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-semibold mb-6">Your Widgets</h2>
-      
+
       {widgets.length === 0 ? (
         <div className="text-center p-8 bg-gray-50 rounded-lg">
           <p className="text-gray-500">No widgets created yet</p>
@@ -62,21 +132,9 @@ const WidgetList: React.FC = () => {
                 <div>
                   <h3 className="text-lg font-medium">{widget.name}</h3>
                   <p className="text-sm text-gray-500 capitalize">{widget.type}</p>
-                  <p className="text-sm text-gray-500">{widget.destination}</p>
+                  <p className="text-sm text-gray-500">{widget.destination || 'No destination configured'}</p>
                 </div>
                 <Space>
-                  <Tooltip title="Copy embed code">
-                    <Button
-                      icon={<CopyOutlined />}
-                      onClick={() => handleCopyCode(widget)}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Widget settings">
-                    <Button
-                      icon={<SettingOutlined />}
-                      onClick={() => handleShowEmbedCode(widget)}
-                    />
-                  </Tooltip>
                   <Tooltip title="Delete widget">
                     <Button
                       icon={<DeleteOutlined />}
@@ -90,31 +148,8 @@ const WidgetList: React.FC = () => {
           ))}
         </div>
       )}
-
-      <Modal
-        title="Widget Embed Code"
-        open={showEmbedCode}
-        onCancel={() => setShowEmbedCode(false)}
-        footer={[
-          <Button key="copy" type="primary" onClick={() => selectedWidget && handleCopyCode(selectedWidget)}>
-            Copy Code
-          </Button>,
-          <Button key="close" onClick={() => setShowEmbedCode(false)}>
-            Close
-          </Button>
-        ]}
-      >
-        {selectedWidget && (
-          <div>
-            <p className="mb-4">Add this code to your website to embed the widget:</p>
-            <pre className="bg-gray-50 p-4 rounded overflow-x-auto">
-              {selectedWidget.embedCode}
-            </pre>
-          </div>
-        )}
-      </Modal>
     </div>
   );
 };
 
-export default WidgetList; 
+export default WidgetList;

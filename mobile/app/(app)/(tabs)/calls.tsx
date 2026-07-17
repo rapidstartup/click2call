@@ -71,7 +71,7 @@ export default function CallsScreen() {
       setCalls(data);
     } catch (error) {
       console.error('Error loading call history:', error);
-      setError('Failed to load call history. Please try again.');
+      setError(error instanceof Error ? error.message : 'Failed to load call history. Please try again.');
     } finally {
       setIsLoading(false);
       setRefreshing(false);

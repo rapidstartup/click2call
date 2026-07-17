@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button, Select, Input, Form, TimePicker, Radio, Space, message } from 'antd';
 import { Phone, Bot, Voicemail } from 'lucide-react';
+import { getAuthHeaders } from '../lib/api';
 
 export type WidgetType = 'call2app' | 'siptrunk' | 'aibot' | 'voicemail' | 'vapi';
 export type RouteType = 'call2app' | 'aibot' | 'voicemail';
@@ -57,12 +58,14 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
 
   const handleSubmit = async (values: WidgetConfig) => {
     try {
+      const authHeaders = await getAuthHeaders();
+
       // Create the widget first
       const response = await fetch('/api/widgets', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          ...authHeaders,
         },
         body: JSON.stringify(values),
       });
@@ -82,7 +85,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              ...authHeaders,
             },
             body: JSON.stringify({
               sipDomain,
@@ -461,4 +464,4 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
   );
 };
 
-export default WidgetCreator; 
+export default WidgetCreator;
