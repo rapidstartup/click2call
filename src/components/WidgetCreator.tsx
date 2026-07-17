@@ -227,7 +227,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
               <>
                 <Form.Item
                   name={['settings', 'vapi_api_key']}
-                  label="VAPI API Key"
+                  label="VAPI Private API Key"
                   rules={[{ required: true, message: 'Please enter your VAPI API Key' }]}
                   className="flex-1"
                 >
@@ -251,10 +251,19 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
             
             {/* API Key with Save button */}
             <div className="space-y-4">
+              <Form.Item
+                name={['settings', 'vapi_public_key']}
+                label="VAPI Public Key"
+                rules={[{ required: true, message: 'Please enter your VAPI Public Key' }]}
+                extra="This key is safe to use in the browser. Do not use your private API key here."
+              >
+                <Input placeholder="Enter your VAPI Public Key" />
+              </Form.Item>
+
               <div className="flex items-start space-x-4">
                 <Form.Item
                   name={['settings', 'vapi_api_key']}
-                  label="VAPI API Key"
+                  label="VAPI Private API Key"
                   rules={[{ required: true, message: 'Please enter your VAPI API Key' }]}
                   className="flex-1"
                 >
@@ -461,4 +470,4 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
   );
 };
 
-export default WidgetCreator; 
+export default WidgetCreator;

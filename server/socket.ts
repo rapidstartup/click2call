@@ -15,6 +15,10 @@ export interface ServerStats {
   startTime: number;
 }
 
+interface SocketAuth {
+  token?: unknown;
+}
+
 const stats: ServerStats = {
   totalConnections: 0,
   activeConnections: 0,
@@ -71,27 +75,33 @@ export function setupSocketServer(httpServer: HttpServer) {
     allowUpgrades: true,
     perMessageDeflate: {
       threshold: 2048
-    },
-    allowRequest: (req, callback) => {
-      console.log('Socket.IO handshake request:', {
-        headers: req.headers,
-        url: req.url,
-        method: req.method,
-        address: req.connection?.remoteAddress,
-        timestamp: new Date().toISOString()
-      });
-      callback(null, true);
     }
   });
 
-  io.engine.on("headers", (headers, req) => {
-    console.log('Socket.IO handshake headers:', {
-      requestHeaders: req.headers,
-      responseHeaders: headers,
-      url: req.url,
-      method: req.method,
-      address: req.connection.remoteAddress
-    });
+  io.use(async (socket, next) => {
+    const auth = socket.handshake.auth as SocketAuth | undefined;
+    const bearerHeader = socket.handshake.headers.authorization;
+    const token = typeof auth?.token === 'string'
+      ? auth.token
+      : typeof bearerHeader === 'string' && bearerHeader.startsWith('Bearer ')
+        ? bearerHeader.slice('Bearer '.length)
+        : null;
+
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error || !user) {
+        return next(new Error('Invalid authentication token'));
+      }
+
+      socket.data.userId = user.id;
+      next();
+    } catch {
+      next(new Error('Invalid authentication token'));
+    }
   });
 
   io.on("connection", (socket) => {
@@ -104,8 +114,6 @@ export function setupSocketServer(httpServer: HttpServer) {
       id: socket.id,
       origin: socket.handshake.headers.origin,
       transport: socket.conn.transport.name,
-      headers: socket.handshake.headers,
-      query: socket.handshake.query,
       secure: socket.handshake.secure,
       protocol: socket.handshake.headers['x-forwarded-proto'] || 'unknown',
       address: socket.handshake.address,
@@ -122,20 +130,23 @@ export function setupSocketServer(httpServer: HttpServer) {
           // Get widget configuration
           const { data: widget, error } = await supabase
             .from('widgets')
-            .select('*')
+            .select('type, settings')
             .eq('id', data.widgetId)
+            .eq('user_id', socket.data.userId)
             .single();
 
           if (error || !widget) {
             throw new Error('Widget not found');
           }
 
-          // For VAPI widgets, send VAPI configuration
-          if (widget.type === 'vapi' && widget.settings?.vapi_api_key && widget.settings?.vapi_assistant_id) {
+          // Only the explicitly public VAPI key may be sent to a browser.
+          if (widget.type === 'vapi' && widget.settings?.vapi_public_key && widget.settings?.vapi_assistant_id) {
             socket.emit('vapi-config', {
-              apiKey: widget.settings.vapi_api_key,
+              publicKey: widget.settings.vapi_public_key,
               assistantId: widget.settings.vapi_assistant_id
             });
+          } else if (widget.type === 'vapi') {
+            throw new Error('VAPI public key is not configured');
           }
 
           // Update stats and create call session

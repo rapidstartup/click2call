@@ -3,13 +3,14 @@ import { Phone } from 'lucide-react';
 import io, { Socket } from 'socket.io-client';
 import { AudioSettings } from './AudioSettings';
 import Vapi from '@vapi-ai/web';
+import { supabase } from '../lib/supabase';
 
 interface SignalData {
   type: string;
   timestamp?: number;
   widgetId?: string;
   vapiConfig?: {
-    apiKey: string;
+    publicKey: string;
     assistantId: string;
   };
 }
@@ -64,32 +65,41 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
   const [vapiClient, setVapiClient] = useState<Vapi | null>(null);
 
   useEffect(() => {
-    const socketOptions = {
-      ...defaultOptions,
-      transports: ['websocket', 'polling'],  // Allow polling fallback
-      reconnectionAttempts: 5,  // Increase retry attempts
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,  // Cap maximum delay
-      timeout: 20000,  // Increase timeout
-      forceNew: true,
-      rememberUpgrade: true,
-      timestampRequests: true,
-      upgrade: true,
-      autoConnect: true,
-      // Add additional debug options
-      debug: true
-    };
+    let newSocket: Socket | null = null;
+    let cancelled = false;
 
-    console.log('Connecting with options:', {
-      url: SOCKET_SERVER_URL,
-      ...socketOptions,
-      timestamp: new Date().toISOString()
-    });
+    const connectSocket = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
 
-    const newSocket = io(SOCKET_SERVER_URL, socketOptions);
+      const socketOptions = {
+        ...defaultOptions,
+        auth: session?.access_token ? { token: session.access_token } : undefined,
+        transports: ['websocket', 'polling'],  // Allow polling fallback
+        reconnectionAttempts: 5,  // Increase retry attempts
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,  // Cap maximum delay
+        timeout: 20000,  // Increase timeout
+        forceNew: true,
+        rememberUpgrade: true,
+        timestampRequests: true,
+        upgrade: true,
+        autoConnect: true,
+        // Add additional debug options
+        debug: true
+      };
 
-    // Debug transport state using socket.io events
-    newSocket.on("connect_error", (error) => {
+      console.log('Connecting with options:', {
+        url: SOCKET_SERVER_URL,
+        transports: socketOptions.transports,
+        timestamp: new Date().toISOString()
+      });
+
+      const connectedSocket = io(SOCKET_SERVER_URL, socketOptions);
+      newSocket = connectedSocket;
+
+      // Debug transport state using socket.io events
+      connectedSocket.on("connect_error", (error) => {
       console.log('Connection error:', {
         error: error.message,
         name: error.name,
@@ -98,17 +108,17 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       });
     });
 
-    newSocket.on("connect", () => {
+      connectedSocket.on("connect", () => {
       console.log('Socket connected:', {
-        id: newSocket.id,
+        id: connectedSocket.id,
         timestamp: new Date().toISOString()
       });
       setIsConnected(true);  // Set connection state to true
       setStatus('Ready');  // Update status to show we're ready
     });
 
-    // Debug packet events
-    newSocket.io.on("packet", (packet) => {
+      // Debug packet events
+      connectedSocket.io.on("packet", (packet) => {
       console.log('Socket packet:', {
         type: packet.type,
         data: packet.data,
@@ -116,8 +126,8 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       });
     });
 
-    // Debug engine packet events
-    newSocket.io.engine.on("packet", (packet) => {
+      // Debug engine packet events
+      connectedSocket.io.engine.on("packet", (packet) => {
       console.log('Engine packet:', {
         type: packet.type,
         data: packet.data,
@@ -125,33 +135,33 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       });
     });
 
-    // Debug upgrading
-    newSocket.io.engine.on("upgrading", (transport) => {
+      // Debug upgrading
+      connectedSocket.io.engine.on("upgrading", (transport) => {
       console.log('Socket upgrading:', {
         transport: transport.name,
         timestamp: new Date().toISOString()
       });
     });
 
-    // Debug upgrade complete
-    newSocket.io.engine.on("upgrade", (transport) => {
+      // Debug upgrade complete
+      connectedSocket.io.engine.on("upgrade", (transport) => {
       console.log('Socket upgraded:', {
         transport: transport.name,
         timestamp: new Date().toISOString()
       });
     });
 
-    newSocket.on('disconnect', (reason) => {
+      connectedSocket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', {
         reason,
-        wasConnected: newSocket.connected,
+        wasConnected: connectedSocket.connected,
         timestamp: new Date().toISOString()
       });
       setIsConnected(false);
       setStatus('Reconnecting...');
     });
 
-    newSocket.on('connect_error', (error) => {
+      connectedSocket.on('connect_error', (error) => {
       console.log('Connection error:', {
         error: error.message,
         name: error.name,
@@ -162,7 +172,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       setIsConnected(false);
     });
 
-    newSocket.on('error', (error) => {
+      connectedSocket.on('error', (error) => {
       console.error('Socket error:', {
         error: error.toString(),
         stack: error instanceof Error ? error.stack : undefined,
@@ -172,7 +182,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       setIsConnected(false);
     });
 
-    newSocket.on('signal', (data: SignalData) => {
+      connectedSocket.on('signal', (data: SignalData) => {
       console.log('Signal received:', {
         data,
         timestamp: new Date().toISOString()
@@ -180,28 +190,32 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
     });
 
     // Handle call status updates
-    newSocket.on('call-status', (data: { status: string, message: string }) => {
+      connectedSocket.on('call-status', (data: { status: string, message: string }) => {
       console.log('Call status update:', data);
       setStatus(data.message);
     });
 
     // Handle call established
-    newSocket.on('call-established', () => {
+      connectedSocket.on('call-established', () => {
       setStatus('Call connected');
       setIsCalling(true);
     });
 
     // Handle call ended
-    newSocket.on('call-ended', () => {
+      connectedSocket.on('call-ended', () => {
       setStatus('Call ended');
       setIsCalling(false);
     });
 
-    setSocket(newSocket);
+      setSocket(connectedSocket);
+    };
+
+    void connectSocket();
 
     return () => {
+      cancelled = true;
       console.log('Cleaning up socket connection');
-      newSocket.close();
+      newSocket?.close();
     };
   }, []);
 
@@ -220,10 +234,10 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       });
 
       // Listen for VAPI configuration if the widget is configured for VAPI
-      socket.once('vapi-config', async (config: { apiKey: string; assistantId: string }) => {
+      socket.once('vapi-config', async (config: { publicKey: string; assistantId: string }) => {
         try {
           // Initialize VAPI client
-          const vapi = new Vapi(config.apiKey);
+          const vapi = new Vapi(config.publicKey);
 
           // Set up event handlers
           vapi.on('call-end', () => {

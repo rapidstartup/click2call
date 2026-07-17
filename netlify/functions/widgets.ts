@@ -85,6 +85,7 @@ export const handler: Handler = async (event) => {
             ...body,
             user_id: user.id
           })
+          .select('id, name, type, destination, routing, created_at, updated_at')
           .single();
         
         responseData = result.data;
@@ -114,4 +115,4 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ error: 'Internal server error' })
     };
   }
-}; 
+};
