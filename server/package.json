@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "nodemon --exec ts-node index.ts",
+    "test": "npm run build && node --test routes/mobile.test.js",
     "prebuild": "rm -rf dist/",
     "build": "tsc && npm run copy-templates",
     "copy-templates": "mkdir -p dist/templates && cp -r templates/* dist/templates/",
@@ -14,6 +15,7 @@
     "deploy": "npm run build && pm2 delete click2call-server || true && source ../.env && pm2 start ecosystem.config.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
     "@types/twilio": "^3.19.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
