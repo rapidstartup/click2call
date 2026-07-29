@@ -1,112 +1,78 @@
-import * as SecureStore from 'expo-secure-store';
 import { Widget, CallData } from '@/types/widget';
+import { supabase } from '@/lib/supabase';
 
-const API_URL = 'https://io.click2call.ai';
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://io.click2call.ai';
 
-// Helper to get auth token
-const getToken = async (): Promise<string | null> => {
-  return await SecureStore.getItemAsync('token');
+type DeviceRegistration = {
+  deviceToken: string;
+  deviceName: string;
+  platform: 'ios' | 'android';
+  appVersion: string;
 };
 
-// Fetch widgets for the logged-in user
-export const fetchWidgets = async (): Promise<Widget[]> => {
-  try {
-    const token = await getToken();
-    
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-    
-    // This would be a real API call in production
-    // Mocking the response for demo purposes
-    const mockWidgets: Widget[] = [
-      {
-        id: 'w1',
-        name: 'Sales Widget',
-        type: 'callButton',
-        isActive: true,
-        routeToApp: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'w2',
-        name: 'Support Widget',
-        type: 'callForm',
-        isActive: true,
-        routeToApp: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'w3',
-        name: 'Contact Widget',
-        type: 'callButton',
-        isActive: false,
-        routeToApp: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-    
-    return mockWidgets;
-  } catch (error) {
-    console.error('Error fetching widgets:', error);
-    throw error;
+type MobileWidgetResponse = {
+  id: string;
+  name: string;
+  type: string;
+  created_at?: string;
+  updated_at?: string;
+  widget_routes?: Array<{ status: 'active' | 'inactive' }>;
+};
+
+const getAccessToken = async (): Promise<string> => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+
+  if (error || !session?.access_token) {
+    throw new Error('Authentication required');
   }
+
+  return session.access_token;
+};
+
+const request = async <T>(path: string, options: RequestInit = {}): Promise<T> => {
+  const token = await getAccessToken();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      ...options.headers,
+    },
+  });
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => null) as { error?: string } | null;
+    throw new Error(body?.error || `Request failed with status ${response.status}`);
+  }
+
+  return response.json() as Promise<T>;
+};
+
+export const registerDevice = async (device: DeviceRegistration): Promise<void> => {
+  await request('/mobile/devices', {
+    method: 'POST',
+    body: JSON.stringify(device),
+  });
+};
+
+// Fetch widgets for the logged-in user.
+export const fetchWidgets = async (): Promise<Widget[]> => {
+  const widgets = await request<MobileWidgetResponse[]>('/mobile/widgets');
+
+  return widgets.map((widget) => ({
+    id: widget.id,
+    name: widget.name,
+    type: widget.type,
+    isActive: widget.widget_routes?.some((route) => route.status === 'active') ?? false,
+    routeToApp: (widget.widget_routes?.length ?? 0) > 0,
+    createdAt: widget.created_at || '',
+    updatedAt: widget.updated_at || '',
+  }));
 };
 
 // Fetch call history
 export const fetchCallHistory = async (): Promise<CallData[]> => {
-  try {
-    const token = await getToken();
-    
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-    
-    // Mock call history data
-    const mockCalls: CallData[] = [
-      {
-        id: 'c1',
-        widgetId: 'w1',
-        caller: {
-          name: 'John Doe',
-          phone: '+1234567890',
-          email: 'john@example.com',
-        },
-        status: 'completed',
-        startTime: '2023-04-01T10:30:00Z',
-        endTime: '2023-04-01T10:35:00Z',
-        duration: 300,
-      },
-      {
-        id: 'c2',
-        widgetId: 'w2',
-        caller: {
-          name: 'Jane Smith',
-          phone: '+0987654321',
-        },
-        status: 'missed',
-        startTime: '2023-04-02T14:20:00Z',
-      },
-      {
-        id: 'c3',
-        widgetId: 'w1',
-        caller: {
-          name: 'Alex Johnson',
-          email: 'alex@example.com',
-        },
-        status: 'completed',
-        startTime: '2023-04-03T09:15:00Z',
-        endTime: '2023-04-03T09:22:00Z',
-        duration: 420,
-      },
-    ];
-    
-    return mockCalls;
-  } catch (error) {
-    console.error('Error fetching call history:', error);
-    throw error;
-  }
+  await getAccessToken();
+  return [];
 };

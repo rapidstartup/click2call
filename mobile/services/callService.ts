@@ -1,4 +1,4 @@
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import socketService from './socketService';
 import { Platform } from 'react-native';
 
@@ -16,10 +16,10 @@ class CallService {
       if (Platform.OS !== 'web') {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
           playsInSilentModeIOS: true,
           shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
           playThroughEarpieceAndroid: false,
         });
       }
@@ -30,8 +30,6 @@ class CallService {
       );
       this.ringtone = sound;
 
-      // Set up socket event handlers
-      socketService.onIncomingCall(this.handleIncomingCall);
       socketService.onCallEnded(this.handleCallEnded);
 
     } catch (error) {

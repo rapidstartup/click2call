@@ -55,11 +55,13 @@ export default function SettingsScreen() {
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
               <Text style={styles.avatarText}>
-                {user?.name?.charAt(0) || 'U'}
+                {(user?.user_metadata?.name || user?.email || 'U').charAt(0).toUpperCase()}
               </Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name || 'User'}</Text>
+              <Text style={styles.profileName}>
+                {user?.user_metadata?.name || user?.email?.split('@')[0] || 'User'}
+              </Text>
               <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
             </View>
             <TouchableOpacity style={styles.profileButton}>

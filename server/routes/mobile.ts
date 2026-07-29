@@ -47,6 +47,8 @@ router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response)
         id,
         name,
         type,
+        created_at,
+        updated_at,
         destination,
         routing,
         widget_routes (
@@ -128,4 +130,4 @@ router.post('/heartbeat', authenticateUser, async (req: AuthRequest, res: Respon
   }
 });
 
-export default router; 
+export default router;

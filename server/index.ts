@@ -9,6 +9,7 @@ import twilioRoutes from './routes/twilio';
 
 const app = express();
 app.use(cors(config.cors));
+app.use(express.json());
 
 // Trust proxy headers since we're behind Nginx
 app.set('trust proxy', true);
