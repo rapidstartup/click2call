@@ -88,6 +88,18 @@ router.post('/widgets/:widgetId/route', authenticateUser, async (req: AuthReques
       return res.status(404).json({ error: 'Widget not found' });
     }
 
+    // Verify device ownership because this client bypasses RLS
+    const { data: device, error: deviceError } = await supabase
+      .from('mobile_devices')
+      .select('id')
+      .eq('id', deviceId)
+      .eq('user_id', userId)
+      .single();
+
+    if (deviceError || !device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+
     // Update or create route
     const { data, error } = await supabase
       .from('widget_routes')
@@ -128,4 +140,4 @@ router.post('/heartbeat', authenticateUser, async (req: AuthRequest, res: Respon
   }
 });
 
-export default router; 
+export default router;
