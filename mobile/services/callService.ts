@@ -1,11 +1,10 @@
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import socketService from './socketService';
 import { Platform } from 'react-native';
 
 class CallService {
-  private sound: Audio.Sound | null = null;
   private currentCallId: string | null = null;
-  private ringtone: Audio.Sound | null = null;
+  private ringtone: ReturnType<typeof createAudioPlayer> | null = null;
 
   async init() {
     try {
@@ -14,21 +13,19 @@ class CallService {
       
       // Set up audio mode for calls
       if (Platform.OS !== 'web') {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          interruptionModeIOS: Audio.INTERRUPTION_MODE_IOS_DO_NOT_MIX,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: Audio.INTERRUPTION_MODE_ANDROID_DO_NOT_MIX,
-          playThroughEarpieceAndroid: false,
+        await setAudioModeAsync({
+          allowsRecording: true,
+          interruptionMode: 'doNotMix',
+          playsInSilentMode: true,
+          shouldPlayInBackground: true,
+          shouldRouteThroughEarpiece: false,
         });
       }
 
       // Pre-load ringtone
-      const { sound } = await Audio.Sound.createAsync(
-        require('@/assets/sounds/ringtone.mp3')
-      );
-      this.ringtone = sound;
+      this.ringtone?.remove();
+      this.ringtone = createAudioPlayer(require('@/assets/sounds/ringtone.mp3'));
+      this.ringtone.loop = true;
 
       // Set up socket event handlers
       socketService.onIncomingCall(this.handleIncomingCall);
@@ -46,9 +43,7 @@ class CallService {
     // Play ringtone
     try {
       if (this.ringtone) {
-        await this.ringtone.playAsync();
-        // Loop the ringtone
-        this.ringtone.setIsLoopingAsync(true);
+        this.ringtone.play();
       }
     } catch (error) {
       console.error('Error playing ringtone:', error);
@@ -59,38 +54,17 @@ class CallService {
     if (this.currentCallId === callId) {
       this.currentCallId = null;
       
-      // Stop ringtone if playing
-      if (this.ringtone) {
-        try {
-          await this.ringtone.stopAsync();
-        } catch (error) {
-          console.error('Error stopping ringtone:', error);
-        }
-      }
-      
-      // Clean up audio session
-      if (this.sound) {
-        try {
-          await this.sound.unloadAsync();
-          this.sound = null;
-        } catch (error) {
-          console.error('Error unloading sound:', error);
-        }
-      }
+      await this.stopRingtone();
     }
   };
 
   async answerCall(callId: string) {
-    if (this.ringtone) {
-      await this.ringtone.stopAsync();
-    }
+    await this.stopRingtone();
     socketService.answerCall(callId);
   }
 
   async rejectCall(callId: string) {
-    if (this.ringtone) {
-      await this.ringtone.stopAsync();
-    }
+    await this.stopRingtone();
     socketService.rejectCall(callId);
     this.currentCallId = null;
   }
@@ -106,16 +80,20 @@ class CallService {
 
   disconnect() {
     if (this.ringtone) {
-      this.ringtone.unloadAsync();
+      this.ringtone.remove();
       this.ringtone = null;
     }
-    
-    if (this.sound) {
-      this.sound.unloadAsync();
-      this.sound = null;
-    }
-    
+
     socketService.disconnect();
+  }
+
+  private async stopRingtone() {
+    if (!this.ringtone) {
+      return;
+    }
+
+    this.ringtone.pause();
+    await this.ringtone.seekTo(0);
   }
 }
 

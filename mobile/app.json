@@ -34,11 +34,13 @@
     "plugins": [
       "expo-router",
       [
-        "expo-av",
+        "expo-audio",
         {
-          "microphonePermission": "Allow Click2Call.ai to access your microphone."
+          "microphonePermission": "Allow Click2Call.ai to access your microphone.",
+          "enableBackgroundPlayback": true
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
