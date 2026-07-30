@@ -1,5 +1,5 @@
 import { Handler } from '@netlify/functions';
-import { createClient, User } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -8,12 +8,6 @@ const supabase = createClient(
 );
 
 export const handler: Handler = async (event) => {
-  console.log('Function invoked:', {
-    path: event.path,
-    httpMethod: event.httpMethod,
-    headers: event.headers,
-  });
-
   // Enable CORS
   const headers = {
     'Access-Control-Allow-Origin': '*', // Update to be more permissive for testing
@@ -21,43 +15,35 @@ export const handler: Handler = async (event) => {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
   };
 
-  let user: User | null = null;
-
   // Handle preflight requests
   if (event.httpMethod === 'OPTIONS') {
-    console.log('Handling OPTIONS request');
     return {
       statusCode: 204,
       headers
     };
   }
 
-  // For GET requests, skip auth check (temporary for testing)
-  if (event.httpMethod !== 'GET') {
-    console.log('Processing authenticated request');
-    // Get the authorization token
-    const authHeader = event.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Missing or invalid authorization token' })
-      };
-    }
-
-    const token = authHeader.split(' ')[1];
-
-    // Verify the token and get user info
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !authUser) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Invalid authorization token' })
-      };
-    }
-    user = authUser;
+  const authHeader = event.headers.authorization ?? event.headers.Authorization;
+  if (!authHeader?.startsWith('Bearer ')) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Missing or invalid authorization token' })
+    };
   }
+
+  const token = authHeader.slice('Bearer '.length);
+
+  // Verify the token and get user info for every operation, including reads.
+  const { data: { user: authUser }, error: authError } = await supabase.auth.getUser(token);
+  if (authError || !authUser) {
+    return {
+      statusCode: 401,
+      headers,
+      body: JSON.stringify({ error: 'Invalid authorization token' })
+    };
+  }
+  const user = authUser;
 
   try {
     let responseData;
@@ -65,19 +51,18 @@ export const handler: Handler = async (event) => {
 
     switch (event.httpMethod) {
       case 'GET': {
-        // Test endpoint
-        responseData = { message: 'Widgets API is working!', timestamp: new Date().toISOString() };
+        const result = await supabase
+          .from('widgets')
+          .select('id, name, type, destination, routing, created_at, updated_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        responseData = result.data;
+        error = result.error;
         break;
       }
       case 'POST': {
         // Create a new widget
-        if (!user) {
-          return {
-            statusCode: 401,
-            headers,
-            body: JSON.stringify({ error: 'Authentication required for this operation' })
-          };
-        }
         const body = JSON.parse(event.body || '{}');
         const result = await supabase
           .from('widgets')
@@ -85,9 +70,40 @@ export const handler: Handler = async (event) => {
             ...body,
             user_id: user.id
           })
+          .select('id, name, type, destination, routing, created_at, updated_at')
           .single();
         
         responseData = result.data;
+        error = result.error;
+        break;
+      }
+      case 'DELETE': {
+        const widgetId = event.path.match(/\/widgets\/([^/]+)\/?$/)?.[1];
+        if (!widgetId) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ error: 'Widget id is required' })
+          };
+        }
+
+        const result = await supabase
+          .from('widgets')
+          .delete()
+          .eq('id', widgetId)
+          .eq('user_id', user.id)
+          .select('id')
+          .maybeSingle();
+
+        if (!result.data && !result.error) {
+          return {
+            statusCode: 404,
+            headers,
+            body: JSON.stringify({ error: 'Widget not found' })
+          };
+        }
+
+        responseData = { success: true };
         error = result.error;
         break;
       }
@@ -114,4 +130,4 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ error: 'Internal server error' })
     };
   }
-}; 
+};

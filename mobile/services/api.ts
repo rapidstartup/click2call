@@ -16,40 +16,36 @@ export const fetchWidgets = async (): Promise<Widget[]> => {
     if (!token) {
       throw new Error('Authentication required');
     }
-    
-    // This would be a real API call in production
-    // Mocking the response for demo purposes
-    const mockWidgets: Widget[] = [
-      {
-        id: 'w1',
-        name: 'Sales Widget',
-        type: 'callButton',
-        isActive: true,
-        routeToApp: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+
+    const response = await fetch(`${API_URL}/mobile/widgets`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
       },
-      {
-        id: 'w2',
-        name: 'Support Widget',
-        type: 'callForm',
-        isActive: true,
-        routeToApp: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      {
-        id: 'w3',
-        name: 'Contact Widget',
-        type: 'callButton',
-        isActive: false,
-        routeToApp: false,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-    ];
-    
-    return mockWidgets;
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to load widgets');
+    }
+
+    const widgets = await response.json() as Array<{
+      id: string;
+      name: string;
+      type: string;
+      routing?: { defaultRoute?: string };
+      created_at: string;
+      updated_at: string;
+      widget_routes?: Array<{ status: string }>;
+    }>;
+
+    return widgets.map(widget => ({
+      id: widget.id,
+      name: widget.name,
+      type: widget.type,
+      isActive: widget.widget_routes?.some(route => route.status === 'active') ?? false,
+      routeToApp: widget.routing?.defaultRoute === 'call2app',
+      createdAt: widget.created_at,
+      updatedAt: widget.updated_at,
+    }));
   } catch (error) {
     console.error('Error fetching widgets:', error);
     throw error;
@@ -58,55 +54,11 @@ export const fetchWidgets = async (): Promise<Widget[]> => {
 
 // Fetch call history
 export const fetchCallHistory = async (): Promise<CallData[]> => {
-  try {
-    const token = await getToken();
-    
-    if (!token) {
-      throw new Error('Authentication required');
-    }
-    
-    // Mock call history data
-    const mockCalls: CallData[] = [
-      {
-        id: 'c1',
-        widgetId: 'w1',
-        caller: {
-          name: 'John Doe',
-          phone: '+1234567890',
-          email: 'john@example.com',
-        },
-        status: 'completed',
-        startTime: '2023-04-01T10:30:00Z',
-        endTime: '2023-04-01T10:35:00Z',
-        duration: 300,
-      },
-      {
-        id: 'c2',
-        widgetId: 'w2',
-        caller: {
-          name: 'Jane Smith',
-          phone: '+0987654321',
-        },
-        status: 'missed',
-        startTime: '2023-04-02T14:20:00Z',
-      },
-      {
-        id: 'c3',
-        widgetId: 'w1',
-        caller: {
-          name: 'Alex Johnson',
-          email: 'alex@example.com',
-        },
-        status: 'completed',
-        startTime: '2023-04-03T09:15:00Z',
-        endTime: '2023-04-03T09:22:00Z',
-        duration: 420,
-      },
-    ];
-    
-    return mockCalls;
-  } catch (error) {
-    console.error('Error fetching call history:', error);
-    throw error;
+  const token = await getToken();
+
+  if (!token) {
+    throw new Error('Authentication required');
   }
+
+  throw new Error('Call history is not available from the current backend');
 };

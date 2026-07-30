@@ -49,6 +49,8 @@ router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response)
         type,
         destination,
         routing,
+        created_at,
+        updated_at,
         widget_routes (
           id,
           status,
