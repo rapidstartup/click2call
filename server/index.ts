@@ -8,9 +8,13 @@ import mobileRoutes from './routes/mobile';
 import twilioRoutes from './routes/twilio';
 import { supabase } from './db';
 import { createWidgetCallToken } from './widgetCallToken';
+import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 
 const app = express();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const TOKEN_WINDOW_MS = 60_000;
+const TOKEN_WINDOW_LIMIT = 10;
+const tokenWindows = new Map<string, { count: number; resetAt: number }>();
 app.use(cors(config.cors));
 app.use(express.json({ limit: '16kb' }));
 app.use(express.urlencoded({ extended: false }));
@@ -68,6 +72,47 @@ app.use(express.static(path.join(__dirname, '../public')));
 app.use('/mobile', mobileRoutes);
 app.use('/twilio', twilioRoutes);
 
+function canIssueWidgetToken(key: string, now = Date.now()): boolean {
+  const current = tokenWindows.get(key);
+  if (!current || current.resetAt <= now) {
+    tokenWindows.set(key, { count: 1, resetAt: now + TOKEN_WINDOW_MS });
+    return true;
+  }
+  if (current.count >= TOKEN_WINDOW_LIMIT) return false;
+  current.count += 1;
+  return true;
+}
+
+// Public embeds exchange their public widget ID for a short-lived token that is
+// cryptographically bound to an owner-approved website origin.
+app.get('/widget-call-token/:widgetId', async (req, res) => {
+  const { widgetId } = req.params;
+  const tokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY;
+  const requestOrigin = normalizeOrigin(req.get('origin'));
+  if (!tokenSecret) return res.status(503).json({ error: 'Widget calling is not configured' });
+  if (!UUID_PATTERN.test(widgetId)) return res.status(404).json({ error: 'Widget not found' });
+
+  const { data: widget, error } = await supabase
+    .from('widgets')
+    .select('id, type, settings')
+    .eq('id', widgetId)
+    .maybeSingle();
+  if (error || !widget || widget.type !== 'vapi') return res.status(404).json({ error: 'Widget not found' });
+  if (!requestOrigin || !isOriginAllowed(requestOrigin, widget.settings)) {
+    return res.status(403).json({ error: 'This website is not authorized for the widget' });
+  }
+
+  const rateKey = `${widget.id}:${req.ip || req.socket.remoteAddress || 'unknown'}`;
+  if (!canIssueWidgetToken(rateKey)) {
+    res.setHeader('Retry-After', '60');
+    return res.status(429).json({ error: 'Too many widget authorization requests' });
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Vary', 'Origin');
+  return res.json({ token: createWidgetCallToken(widget.id, requestOrigin, tokenSecret) });
+});
+
 // Create HTTP server - we'll let Nginx handle SSL
 const server = createServer(app);
 
@@ -91,29 +136,4 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-// Public embeds exchange their public widget ID for a short-lived, widget-scoped
-// socket token. The token authorizes one widget only and contains no provider keys.
-app.get('/widget-call-token/:widgetId', async (req, res) => {
-  const { widgetId } = req.params;
-  const tokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY;
-  if (!tokenSecret) {
-    return res.status(503).json({ error: 'Widget calling is not configured' });
-  }
-  if (!UUID_PATTERN.test(widgetId)) {
-    return res.status(404).json({ error: 'Widget not found' });
-  }
-
-  const { data: widget, error } = await supabase
-    .from('widgets')
-    .select('id')
-    .eq('id', widgetId)
-    .maybeSingle();
-  if (error || !widget) {
-    return res.status(404).json({ error: 'Widget not found' });
-  }
-
-  res.setHeader('Cache-Control', 'no-store');
-  return res.json({ token: createWidgetCallToken(widget.id, tokenSecret) });
 });

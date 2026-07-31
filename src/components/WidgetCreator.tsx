@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Button, Select, Input, Form, TimePicker, Radio, Space, message } from 'antd';
 import { Phone, Bot, Voicemail } from 'lucide-react';
 
+import { supabase } from '../lib/supabase';
+
 export type WidgetType = 'call2app' | 'siptrunk' | 'aibot' | 'voicemail' | 'vapi';
 export type RouteType = 'call2app' | 'aibot' | 'voicemail';
 export type SipProvider = 'twilio' | 'vapi';
@@ -18,7 +20,7 @@ interface WidgetConfig {
       end: string;
     };
   };
-  settings: Record<string, string | number | boolean>;
+  settings: Record<string, string | number | boolean | string[]>;
 }
 
 interface VapiAssistant {
@@ -57,14 +59,25 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
 
   const handleSubmit = async (values: WidgetConfig) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Sign in required');
+      const settings = { ...values.settings };
+      if (values.type === 'vapi') {
+        const rawOrigins = typeof settings.allowed_origins === 'string' ? settings.allowed_origins : '';
+        settings.allowed_origins = rawOrigins
+          .split(/[\n,]/)
+          .map((origin) => origin.trim())
+          .filter(Boolean);
+      }
+
       // Create the widget first
       const response = await fetch('/api/widgets', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify({ ...values, settings }),
       });
 
       if (!response.ok) {
@@ -82,7 +95,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Authorization': `Bearer ${session.access_token}`,
             },
             body: JSON.stringify({
               sipDomain,
@@ -270,6 +283,15 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
                 <Input placeholder="Enter your VAPI Public Key" />
               </Form.Item>
 
+              <Form.Item
+                name={['settings', 'allowed_origins']}
+                label="Allowed website origins"
+                rules={[{ required: true, message: 'Add at least one website origin' }]}
+                extra="Only these exact sites can request a public call token. Enter one origin per line, for example https://www.example.com."
+              >
+                <Input.TextArea rows={3} placeholder="https://www.example.com" />
+              </Form.Item>
+
               <div className="flex items-start space-x-4">
                 <Form.Item
                   name={['settings', 'vapi_api_key']}
@@ -293,13 +315,18 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
                       // Show loading state
                       message.loading('Validating API key and loading assistants...', 0);
 
-                      // Call VAPI directly to validate and fetch assistants
-                      const response = await fetch('https://api.vapi.ai/assistant', {
-                        method: 'GET',
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session) throw new Error('Sign in required');
+
+                      // The authenticated server function contacts VAPI so the
+                      // provider key is never placed in a third-party browser request.
+                      const response = await fetch('/api/vapi-assistants', {
+                        method: 'POST',
                         headers: {
-                          'Authorization': `Bearer ${apiKey}`,
+                          'Authorization': `Bearer ${session.access_token}`,
                           'Content-Type': 'application/json',
                         },
+                        body: JSON.stringify({ api_key: apiKey }),
                       });
 
                       if (!response.ok) {

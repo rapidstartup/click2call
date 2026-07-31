@@ -4,6 +4,7 @@ import { config } from './config';
 import { supabase } from './db';
 import { canUseWidget, toPublicVapiConfig } from './socketSecurity';
 import { verifyWidgetCallToken } from './widgetCallToken';
+import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 
 // Track server statistics
 export interface ServerStats {
@@ -63,7 +64,10 @@ export function setupSocketServer(httpServer: HttpServer) {
 
   const io = new SocketServer(httpServer, {
     cors: {
-      origin: '*',  // Allow all origins for the widget
+      origin: (origin, callback) => {
+        if (!origin || normalizeOrigin(origin)) return callback(null, true);
+        return callback(new Error('Invalid request origin'));
+      },
       methods: ['GET', 'POST'],
       credentials: true,
       preflightContinue: false,
@@ -85,8 +89,10 @@ export function setupSocketServer(httpServer: HttpServer) {
     const auth = socket.handshake.auth as SocketAuth | undefined;
     const widgetTokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY || '';
     const widgetToken = verifyWidgetCallToken(auth?.widgetToken, widgetTokenSecret);
-    if (widgetToken) {
+    const requestOrigin = normalizeOrigin(socket.handshake.headers.origin);
+    if (widgetToken && requestOrigin && widgetToken.origin === requestOrigin) {
       socket.data.widgetId = widgetToken.widgetId;
+      socket.data.widgetOrigin = widgetToken.origin;
       return next();
     }
 
@@ -153,6 +159,12 @@ export function setupSocketServer(httpServer: HttpServer) {
 
           if (error || !widget) {
             throw new Error('Widget not found');
+          }
+          if (socket.data.widgetId && widget.type !== 'vapi') {
+            throw new Error('Public call tokens are only supported for VAPI widgets');
+          }
+          if (socket.data.widgetOrigin && !isOriginAllowed(socket.data.widgetOrigin, widget.settings)) {
+            throw new Error('Widget origin is no longer authorized');
           }
 
           // Only the explicitly public VAPI key may be sent to a browser.

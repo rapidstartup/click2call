@@ -1,6 +1,8 @@
 import { Handler } from '@netlify/functions';
 import { createClient, User } from '@supabase/supabase-js';
 
+import { getAllowedOrigins, normalizeAllowedOrigins } from '../../server/widgetOrigin';
+
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!,
@@ -30,6 +32,7 @@ function safeWidget(widget: WidgetRow) {
   const privateKey = typeof widget.settings?.vapi_api_key === 'string'
     ? widget.settings.vapi_api_key.trim()
     : '';
+  const allowedOrigins = getAllowedOrigins(widget.settings);
   return {
     id: widget.id,
     name: widget.name,
@@ -38,8 +41,10 @@ function safeWidget(widget: WidgetRow) {
     routing: widget.routing,
     created_at: widget.created_at,
     updated_at: widget.updated_at,
+    allowed_origins: allowedOrigins,
     needs_vapi_public_key: widget.type === 'vapi'
       && (!publicKey || publicKey === privateKey),
+    needs_allowed_origins: widget.type === 'vapi' && allowedOrigins.length === 0,
   };
 }
 
@@ -81,6 +86,18 @@ async function handleRequest(method: string, rawBody: string | null, user: User,
 
   if (method === 'POST') {
     const body = JSON.parse(rawBody || '{}') as Record<string, unknown>;
+    if (body.type === 'vapi') {
+      const settings = body.settings && typeof body.settings === 'object' && !Array.isArray(body.settings)
+        ? body.settings as Record<string, unknown>
+        : {};
+      const publicKey = typeof settings.vapi_public_key === 'string' ? settings.vapi_public_key.trim() : '';
+      const privateKey = typeof settings.vapi_api_key === 'string' ? settings.vapi_api_key.trim() : '';
+      const allowedOrigins = normalizeAllowedOrigins(settings.allowed_origins);
+      if (!publicKey || !privateKey || publicKey === privateKey || allowedOrigins.length === 0) {
+        return response(400, { error: 'VAPI widgets require distinct private and public keys plus an allowed website origin' });
+      }
+      body.settings = { ...settings, vapi_api_key: privateKey, vapi_public_key: publicKey, allowed_origins: allowedOrigins };
+    }
     const { data, error } = await supabase
       .from('widgets')
       .insert({ ...body, user_id: user.id })
@@ -91,10 +108,17 @@ async function handleRequest(method: string, rawBody: string | null, user: User,
   }
 
   if (method === 'PATCH') {
-    const body = JSON.parse(rawBody || '{}') as { vapi_public_key?: unknown; widget_id?: unknown };
+    const body = JSON.parse(rawBody || '{}') as {
+      allowed_origins?: unknown;
+      vapi_public_key?: unknown;
+      widget_id?: unknown;
+    };
     const widgetId = typeof body.widget_id === 'string' ? body.widget_id : queryId;
     const publicKey = typeof body.vapi_public_key === 'string' ? body.vapi_public_key.trim() : '';
-    if (!widgetId || !publicKey) return response(400, { error: 'Widget ID and VAPI public key are required' });
+    const allowedOrigins = normalizeAllowedOrigins(body.allowed_origins);
+    if (!widgetId || (!publicKey && allowedOrigins.length === 0)) {
+      return response(400, { error: 'Widget ID and at least one security setting are required' });
+    }
 
     const { data: existing, error: loadError } = await supabase
       .from('widgets')
@@ -108,12 +132,19 @@ async function handleRequest(method: string, rawBody: string | null, user: User,
     const privateKey = typeof existing.settings?.vapi_api_key === 'string'
       ? existing.settings.vapi_api_key.trim()
       : '';
-    if (publicKey === privateKey) {
+    if (publicKey && publicKey === privateKey) {
       return response(400, { error: 'The VAPI public key must be different from the private API key' });
     }
 
-    const settings = { ...(existing.settings as Record<string, unknown>), vapi_public_key: publicKey };
-    delete settings.vapi_public_key_required;
+    const settings = { ...(existing.settings as Record<string, unknown>) };
+    if (publicKey) {
+      settings.vapi_public_key = publicKey;
+      delete settings.vapi_public_key_required;
+    }
+    if (allowedOrigins.length > 0) {
+      settings.allowed_origins = allowedOrigins;
+      delete settings.allowed_origins_required;
+    }
     const { data, error } = await supabase
       .from('widgets')
       .update({ settings })

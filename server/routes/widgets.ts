@@ -2,6 +2,7 @@ import { Router, Request } from 'express';
 import twilio from 'twilio';
 import { supabase } from '../db';
 import { authenticateUser } from '../middleware/auth';
+import { normalizeAllowedOrigins } from '../widgetOrigin';
 
 const router = Router();
 
@@ -37,7 +38,10 @@ router.patch('/:id/vapi-public-key', authenticateUser, async (req: Authenticated
   const publicKey = typeof req.body?.vapi_public_key === 'string'
     ? req.body.vapi_public_key.trim()
     : '';
-  if (!publicKey) return res.status(400).json({ error: 'VAPI public key is required' });
+  const allowedOrigins = normalizeAllowedOrigins(req.body?.allowed_origins);
+  if (!publicKey && allowedOrigins.length === 0) {
+    return res.status(400).json({ error: 'At least one VAPI security setting is required' });
+  }
 
   const { data: existing, error: loadError } = await supabase
     .from('widgets')
@@ -51,12 +55,19 @@ router.patch('/:id/vapi-public-key', authenticateUser, async (req: Authenticated
   const privateKey = typeof existing.settings?.vapi_api_key === 'string'
     ? existing.settings.vapi_api_key.trim()
     : '';
-  if (publicKey === privateKey) {
+  if (publicKey && publicKey === privateKey) {
     return res.status(400).json({ error: 'The VAPI public key must be different from the private API key' });
   }
 
-  const settings = { ...existing.settings, vapi_public_key: publicKey };
-  delete settings.vapi_public_key_required;
+  const settings = { ...existing.settings };
+  if (publicKey) {
+    settings.vapi_public_key = publicKey;
+    delete settings.vapi_public_key_required;
+  }
+  if (allowedOrigins.length > 0) {
+    settings.allowed_origins = allowedOrigins;
+    delete settings.allowed_origins_required;
+  }
   const { data, error } = await supabase
     .from('widgets')
     .update({ settings })

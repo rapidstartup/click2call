@@ -6,10 +6,12 @@ import { supabase } from '../lib/supabase';
 import { WidgetType } from './WidgetCreator';
 
 interface Widget {
+  allowed_origins: string[];
   created_at: string;
   destination: string;
   id: string;
   name: string;
+  needs_allowed_origins: boolean;
   needs_vapi_public_key: boolean;
   type: WidgetType;
 }
@@ -23,6 +25,7 @@ const WidgetList: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedWidget, setSelectedWidget] = useState<Widget | null>(null);
   const [publicKey, setPublicKey] = useState('');
+  const [allowedOrigins, setAllowedOrigins] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const authenticatedFetch = useCallback(async (input: string, init?: RequestInit) => {
@@ -71,21 +74,25 @@ const WidgetList: React.FC = () => {
   };
 
   const handleSavePublicKey = async () => {
-    if (!selectedWidget || !publicKey.trim()) return;
+    if (!selectedWidget || (!publicKey.trim() && !allowedOrigins.trim())) return;
     setIsSaving(true);
     try {
       const response = await authenticatedFetch('/api/widgets', {
         method: 'PATCH',
         body: JSON.stringify({
           widget_id: selectedWidget.id,
-          vapi_public_key: publicKey.trim(),
+          ...(publicKey.trim() ? { vapi_public_key: publicKey.trim() } : {}),
+          ...(allowedOrigins.trim() ? {
+            allowed_origins: allowedOrigins.split(/[\n,]/).map((origin) => origin.trim()).filter(Boolean),
+          } : {}),
         }),
       });
       const payload = await response.json() as Widget | { error?: string };
       if (!response.ok) throw new Error('error' in payload && payload.error ? payload.error : 'Failed to update widget');
-      message.success('VAPI public key saved');
+      message.success('VAPI security settings saved');
       setSelectedWidget(null);
       setPublicKey('');
+      setAllowedOrigins('');
       await loadWidgets();
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Failed to update widget');
@@ -101,12 +108,12 @@ const WidgetList: React.FC = () => {
   return (
     <div className="space-y-4">
       <h2 className="mb-6 text-2xl font-semibold">Your Widgets</h2>
-      {widgets.some((widget) => widget.needs_vapi_public_key) && (
+      {widgets.some((widget) => widget.needs_vapi_public_key || widget.needs_allowed_origins) && (
         <Alert
           type="warning"
           showIcon
-          message="VAPI public key required"
-          description="One or more existing VAPI widgets need their browser-safe public key before they can receive public calls. Private API keys are never sent to callers."
+          message="VAPI security setup required"
+          description="One or more existing VAPI widgets need a browser-safe public key or an allowed website origin before they can receive public calls. Private API keys are never sent to callers."
         />
       )}
 
@@ -122,10 +129,14 @@ const WidgetList: React.FC = () => {
                   <p className="text-sm capitalize text-gray-500">{widget.type}</p>
                   <p className="text-sm text-gray-500">{widget.destination}</p>
                   {widget.needs_vapi_public_key && <p className="mt-2 text-xs font-medium text-amber-700">Public key required</p>}
+                  {widget.needs_allowed_origins && <p className="mt-1 text-xs font-medium text-amber-700">Allowed website required</p>}
                 </div>
                 <Space>
                   <Tooltip title="Copy embed code"><Button icon={<CopyOutlined />} onClick={() => void handleCopyCode(widget)} /></Tooltip>
-                  <Tooltip title="Widget settings"><Button icon={<SettingOutlined />} onClick={() => setSelectedWidget(widget)} /></Tooltip>
+                  <Tooltip title="Widget settings"><Button icon={<SettingOutlined />} onClick={() => {
+                    setSelectedWidget(widget);
+                    setAllowedOrigins(widget.allowed_origins.join('\n'));
+                  }} /></Tooltip>
                   <Tooltip title="Delete widget"><Button icon={<DeleteOutlined />} danger onClick={() => handleDeleteWidget(widget)} /></Tooltip>
                 </Space>
               </div>
@@ -137,15 +148,25 @@ const WidgetList: React.FC = () => {
       <Modal
         title={selectedWidget?.type === 'vapi' ? 'VAPI browser configuration' : 'Widget settings'}
         open={Boolean(selectedWidget)}
-        onCancel={() => { setSelectedWidget(null); setPublicKey(''); }}
-        okText="Save public key"
-        okButtonProps={{ disabled: selectedWidget?.type !== 'vapi' || !publicKey.trim(), loading: isSaving }}
+        onCancel={() => { setSelectedWidget(null); setPublicKey(''); setAllowedOrigins(''); }}
+        okText="Save security settings"
+        okButtonProps={{
+          disabled: selectedWidget?.type !== 'vapi' || (!publicKey.trim() && !allowedOrigins.trim()),
+          loading: isSaving,
+        }}
         onOk={() => void handleSavePublicKey()}
       >
         {selectedWidget?.type === 'vapi' ? (
           <div className="space-y-3">
             <p>Enter the browser-safe VAPI public key for “{selectedWidget.name}”. Never paste the private API key here.</p>
             <Input value={publicKey} onChange={(event) => setPublicKey(event.target.value)} placeholder="VAPI public key" />
+            <p>Allow public calls only from these exact website origins, one per line.</p>
+            <Input.TextArea
+              rows={3}
+              value={allowedOrigins}
+              onChange={(event) => setAllowedOrigins(event.target.value)}
+              placeholder="https://www.example.com"
+            />
           </div>
         ) : (
           <p>No editable security settings are required for this widget type.</p>

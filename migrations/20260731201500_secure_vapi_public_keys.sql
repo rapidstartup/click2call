@@ -3,12 +3,37 @@
 -- for an explicit owner update through the widget settings UI.
 
 UPDATE widgets
-SET settings = jsonb_set(settings, '{vapi_public_key_required}', 'true'::jsonb, true)
+SET settings = settings
+  || CASE
+    WHEN NOT (settings ? 'vapi_public_key')
+      OR NULLIF(BTRIM(settings->>'vapi_public_key'), '') IS NULL
+      OR BTRIM(settings->>'vapi_public_key') = BTRIM(settings->>'vapi_api_key')
+    THEN '{"vapi_public_key_required":true}'::jsonb
+    ELSE '{}'::jsonb
+  END
+  || CASE
+    WHEN NOT (settings ? 'allowed_origins')
+      OR jsonb_typeof(settings->'allowed_origins') <> 'array'
+      OR CASE
+        WHEN jsonb_typeof(settings->'allowed_origins') = 'array'
+        THEN jsonb_array_length(settings->'allowed_origins') = 0
+        ELSE true
+      END
+    THEN '{"allowed_origins_required":true}'::jsonb
+    ELSE '{}'::jsonb
+  END
 WHERE type = 'vapi'
   AND (
     NOT (settings ? 'vapi_public_key')
     OR NULLIF(BTRIM(settings->>'vapi_public_key'), '') IS NULL
     OR BTRIM(settings->>'vapi_public_key') = BTRIM(settings->>'vapi_api_key')
+    OR NOT (settings ? 'allowed_origins')
+    OR jsonb_typeof(settings->'allowed_origins') <> 'array'
+    OR CASE
+      WHEN jsonb_typeof(settings->'allowed_origins') = 'array'
+      THEN jsonb_array_length(settings->'allowed_origins') = 0
+      ELSE true
+    END
   );
 
 CREATE OR REPLACE FUNCTION validate_widget_settings()
@@ -27,7 +52,22 @@ BEGIN
       RAISE EXCEPTION 'VAPI widgets require distinct private and public keys';
     END IF;
 
-    NEW.settings = NEW.settings - 'vapi_public_key_required';
+    IF NOT (
+      NEW.settings ? 'allowed_origins' AND
+      jsonb_typeof(NEW.settings->'allowed_origins') = 'array'
+    ) THEN
+      RAISE EXCEPTION 'VAPI widgets require an allowed_origins array';
+    END IF;
+
+    IF jsonb_array_length(NEW.settings->'allowed_origins') = 0 OR EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements_text(NEW.settings->'allowed_origins') AS allowed(origin)
+      WHERE allowed.origin !~ '^https?://[^/]+/?$'
+    ) THEN
+      RAISE EXCEPTION 'VAPI widgets require at least one valid allowed origin';
+    END IF;
+
+    NEW.settings = NEW.settings - 'vapi_public_key_required' - 'allowed_origins_required';
 
     IF NEW.settings ? 'vapi_assistant_id' AND NOT (
       NEW.settings ? 'vapi_assistant_name' AND
