@@ -11,7 +11,8 @@ module.exports = {
       PORT: 3002,
       VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
       VITE_SUPABASE_SERVICE_KEY: process.env.VITE_SUPABASE_SERVICE_KEY,
+      WIDGET_CALL_TOKEN_SECRET: process.env.WIDGET_CALL_TOKEN_SECRET,
       VITE_SOCKET_SERVER_URL: process.env.VITE_SOCKET_SERVER_URL || "https://io.click2call.ai:3002"
     }
   }]
-}; 
+};

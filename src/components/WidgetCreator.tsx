@@ -254,7 +254,17 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
               <Form.Item
                 name={['settings', 'vapi_public_key']}
                 label="VAPI Public Key"
-                rules={[{ required: true, message: 'Please enter your VAPI Public Key' }]}
+                rules={[
+                  { required: true, message: 'Please enter your VAPI Public Key' },
+                  {
+                    validator: async (_, value: string) => {
+                      const privateKey = form.getFieldValue(['settings', 'vapi_api_key']);
+                      if (value && privateKey && value.trim() === String(privateKey).trim()) {
+                        throw new Error('Use the VAPI public key here, not the private API key');
+                      }
+                    },
+                  },
+                ]}
                 extra="This key is safe to use in the browser. Do not use your private API key here."
               >
                 <Input placeholder="Enter your VAPI Public Key" />

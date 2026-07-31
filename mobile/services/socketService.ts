@@ -4,12 +4,17 @@ import { Platform } from 'react-native';
 
 const SOCKET_URL = 'https://io.click2call.ai';
 
+interface IncomingCallData {
+  callId: string;
+  [key: string]: unknown;
+}
+
 class SocketService {
   private socket: Socket | null = null;
   private callbacks: {
-    onIncomingCall?: (callData: any) => void;
+    onIncomingCall?: (callData: IncomingCallData) => void;
     onCallEnded?: (callId: string) => void;
-    onError?: (error: any) => void;
+    onError?: (error: unknown) => void;
   } = {};
 
   async init() {
@@ -20,37 +25,38 @@ class SocketService {
         throw new Error('No authentication token found');
       }
       
-      this.socket = io(SOCKET_URL, {
+      const socket = io(SOCKET_URL, {
         auth: { token },
         transports: ['websocket'],
       });
+      this.socket = socket;
 
-      this.socket.on('connect', () => {
+      socket.on('connect', () => {
         console.log('Socket connected');
         // Register device for VOIP
         if (Platform.OS !== 'web') {
-          this.socket.emit('register_device', { 
+          socket.emit('register_device', {
             deviceType: Platform.OS,
             deviceToken: 'device-token-placeholder' // In production, this would be an actual device token
           });
         }
       });
 
-      this.socket.on('disconnect', () => {
+      socket.on('disconnect', () => {
         console.log('Socket disconnected');
       });
 
-      this.socket.on('error', (error) => {
+      socket.on('error', (error: unknown) => {
         console.error('Socket error:', error);
         this.callbacks.onError?.(error);
       });
 
-      this.socket.on('incoming_call', (callData) => {
+      socket.on('incoming_call', (callData) => {
         console.log('Incoming call:', callData);
         this.callbacks.onIncomingCall?.(callData);
       });
 
-      this.socket.on('call_ended', (callId) => {
+      socket.on('call_ended', (callId) => {
         console.log('Call ended:', callId);
         this.callbacks.onCallEnded?.(callId);
       });
@@ -68,7 +74,7 @@ class SocketService {
     }
   }
 
-  onIncomingCall(callback: (callData: any) => void) {
+  onIncomingCall(callback: (callData: IncomingCallData) => void) {
     this.callbacks.onIncomingCall = callback;
   }
 
@@ -76,7 +82,7 @@ class SocketService {
     this.callbacks.onCallEnded = callback;
   }
 
-  onError(callback: (error: any) => void) {
+  onError(callback: (error: unknown) => void) {
     this.callbacks.onError = callback;
   }
 

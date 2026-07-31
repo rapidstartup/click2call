@@ -6,10 +6,13 @@ import { config } from './config';
 import { setupSocketServer, getServerStats } from './socket';
 import mobileRoutes from './routes/mobile';
 import twilioRoutes from './routes/twilio';
+import { supabase } from './db';
+import { createWidgetCallToken } from './widgetCallToken';
 
 const app = express();
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 app.use(cors(config.cors));
-app.use(express.json());
+app.use(express.json({ limit: '16kb' }));
 app.use(express.urlencoded({ extended: false }));
 
 // Trust proxy headers since we're behind Nginx
@@ -88,4 +91,29 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Public embeds exchange their public widget ID for a short-lived, widget-scoped
+// socket token. The token authorizes one widget only and contains no provider keys.
+app.get('/widget-call-token/:widgetId', async (req, res) => {
+  const { widgetId } = req.params;
+  const tokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY;
+  if (!tokenSecret) {
+    return res.status(503).json({ error: 'Widget calling is not configured' });
+  }
+  if (!UUID_PATTERN.test(widgetId)) {
+    return res.status(404).json({ error: 'Widget not found' });
+  }
+
+  const { data: widget, error } = await supabase
+    .from('widgets')
+    .select('id')
+    .eq('id', widgetId)
+    .maybeSingle();
+  if (error || !widget) {
+    return res.status(404).json({ error: 'Widget not found' });
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  return res.json({ token: createWidgetCallToken(widget.id, tokenSecret) });
 });

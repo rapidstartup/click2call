@@ -2,6 +2,8 @@ import { Server as SocketServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { config } from './config';
 import { supabase } from './db';
+import { canUseWidget, toPublicVapiConfig } from './socketSecurity';
+import { verifyWidgetCallToken } from './widgetCallToken';
 
 // Track server statistics
 export interface ServerStats {
@@ -17,6 +19,7 @@ export interface ServerStats {
 
 interface SocketAuth {
   token?: unknown;
+  widgetToken?: unknown;
 }
 
 const stats: ServerStats = {
@@ -80,6 +83,13 @@ export function setupSocketServer(httpServer: HttpServer) {
 
   io.use(async (socket, next) => {
     const auth = socket.handshake.auth as SocketAuth | undefined;
+    const widgetTokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY || '';
+    const widgetToken = verifyWidgetCallToken(auth?.widgetToken, widgetTokenSecret);
+    if (widgetToken) {
+      socket.data.widgetId = widgetToken.widgetId;
+      return next();
+    }
+
     const bearerHeader = socket.handshake.headers.authorization;
     const token = typeof auth?.token === 'string'
       ? auth.token
@@ -88,7 +98,7 @@ export function setupSocketServer(httpServer: HttpServer) {
         : null;
 
     if (!token) {
-      return next(new Error('Authentication required'));
+      return next(new Error('A valid widget call token or user session is required'));
     }
 
     try {
@@ -128,25 +138,28 @@ export function setupSocketServer(httpServer: HttpServer) {
       if (data.type === 'call-start' && data.widgetId) {
         try {
           // Get widget configuration
-          const { data: widget, error } = await supabase
+          if (socket.data.widgetId && !canUseWidget(socket.data.widgetId, data.widgetId)) {
+            throw new Error('Widget token does not authorize this widget');
+          }
+
+          let widgetQuery = supabase
             .from('widgets')
             .select('type, settings')
-            .eq('id', data.widgetId)
-            .eq('user_id', socket.data.userId)
-            .single();
+            .eq('id', data.widgetId);
+          if (!socket.data.widgetId) {
+            widgetQuery = widgetQuery.eq('user_id', socket.data.userId);
+          }
+          const { data: widget, error } = await widgetQuery.single();
 
           if (error || !widget) {
             throw new Error('Widget not found');
           }
 
           // Only the explicitly public VAPI key may be sent to a browser.
-          if (widget.type === 'vapi' && widget.settings?.vapi_public_key && widget.settings?.vapi_assistant_id) {
-            socket.emit('vapi-config', {
-              publicKey: widget.settings.vapi_public_key,
-              assistantId: widget.settings.vapi_assistant_id
-            });
-          } else if (widget.type === 'vapi') {
-            throw new Error('VAPI public key is not configured');
+          if (widget.type === 'vapi') {
+            const publicConfig = toPublicVapiConfig(widget.settings);
+            if (!publicConfig) throw new Error('VAPI public key is not configured');
+            socket.emit('vapi-config', publicConfig);
           }
 
           // Update stats and create call session

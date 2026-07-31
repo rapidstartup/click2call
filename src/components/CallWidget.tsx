@@ -3,7 +3,6 @@ import { Phone } from 'lucide-react';
 import io, { Socket } from 'socket.io-client';
 import { AudioSettings } from './AudioSettings';
 import Vapi from '@vapi-ai/web';
-import { supabase } from '../lib/supabase';
 
 interface SignalData {
   type: string;
@@ -16,7 +15,7 @@ interface SignalData {
 }
 
 interface CallWidgetProps {
-  widgetId: string;
+  widgetId?: string;
 }
 
 const isDev = import.meta.env.DEV;
@@ -31,7 +30,7 @@ const getSocketUrl = () => {
     };
   }
   return {
-    url: 'https://io.click2call.ai',
+    url: import.meta.env.VITE_SOCKET_SERVER_URL || 'https://io.click2call.ai',
     options: { 
       secure: true,
       rejectUnauthorized: false,
@@ -69,12 +68,20 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
     let cancelled = false;
 
     const connectSocket = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      if (!widgetId) {
+        setStatus('Demo widget is not configured');
+        return;
+      }
+
+      const tokenResponse = await fetch(`${SOCKET_SERVER_URL}/widget-call-token/${encodeURIComponent(widgetId)}`);
+      if (!tokenResponse.ok) throw new Error('Unable to authorize this widget');
+      const tokenPayload = await tokenResponse.json() as { token?: unknown };
+      if (typeof tokenPayload.token !== 'string') throw new Error('Widget authorization response was invalid');
       if (cancelled) return;
 
       const socketOptions = {
         ...defaultOptions,
-        auth: session?.access_token ? { token: session.access_token } : undefined,
+        auth: { widgetToken: tokenPayload.token },
         transports: ['websocket', 'polling'],  // Allow polling fallback
         reconnectionAttempts: 5,  // Increase retry attempts
         reconnectionDelay: 1000,
@@ -210,14 +217,18 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       setSocket(connectedSocket);
     };
 
-    void connectSocket();
+    void connectSocket().catch((error: unknown) => {
+      console.error('Widget connection failed:', error);
+      setStatus('Unable to connect this widget');
+      setIsConnected(false);
+    });
 
     return () => {
       cancelled = true;
       console.log('Cleaning up socket connection');
       newSocket?.close();
     };
-  }, []);
+  }, [widgetId]);
 
   const startCall = async () => {
     if (!socket || !isConnected) return;
@@ -225,13 +236,6 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
     try {
       setIsCalling(true);
       setStatus('Initiating call...');
-
-      // Send call start signal with widget ID
-      socket.emit('signal', {
-        type: 'call-start',
-        timestamp: Date.now(),
-        widgetId: widgetId
-      });
 
       // Listen for VAPI configuration if the widget is configured for VAPI
       socket.once('vapi-config', async (config: { publicKey: string; assistantId: string }) => {
@@ -263,6 +267,14 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
           setStatus('Failed to connect to AI assistant');
           endCall();
         }
+      });
+
+      // Register the one-shot response listener before emitting to avoid losing
+      // a fast server response.
+      socket.emit('signal', {
+        type: 'call-start',
+        timestamp: Date.now(),
+        widgetId
       });
 
     } catch (error: unknown) {
@@ -339,10 +351,10 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
         {!isCalling ? (
           <button
             onClick={startCall}
-            disabled={!isConnected}
+            disabled={!isConnected || !widgetId}
             className={`
               w-full py-2 px-4 rounded-md text-sm font-medium
-              ${!isConnected
+              ${!isConnected || !widgetId
                 ? 'bg-gray-300 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
               }
