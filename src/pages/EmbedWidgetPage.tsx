@@ -12,7 +12,7 @@ const EmbedWidgetPage = () => {
 
   return (
     <main className="min-h-screen bg-transparent p-2">
-      <CallWidget widgetId={widgetId} />
+      <CallWidget acceptParentChallenge widgetId={widgetId} />
     </main>
   );
 };

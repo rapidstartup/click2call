@@ -62,7 +62,7 @@ export function setupSocketServer(httpServer: HttpServer) {
     nodeEnv: process.env.NODE_ENV
   });
 
-  const allowedHostnames = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || 'click2call.ai')
+  const allowedHostnames = (process.env.WIDGET_HOSTED_HOSTNAMES || 'click2call.ai')
     .split(',')
     .map((hostname) => hostname.trim().toLowerCase())
     .filter(Boolean);

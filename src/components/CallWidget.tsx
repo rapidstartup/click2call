@@ -15,6 +15,7 @@ interface SignalData {
 }
 
 interface CallWidgetProps {
+  acceptParentChallenge?: boolean;
   widgetId?: string;
 }
 
@@ -81,13 +82,14 @@ console.log('Socket URL:', SOCKET_SERVER_URL);
 console.log('Is Secure:', isSecure);
 console.log('Protocol:', window.location.protocol);
 
-const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
+const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, widgetId }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<string>('Checking browser…');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [vapiClient, setVapiClient] = useState<Vapi | null>(null);
+  const [embeddingOrigin, setEmbeddingOrigin] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [hasUsedPublicCall, setHasUsedPublicCall] = useState(false);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
@@ -95,10 +97,38 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
   const challengeConsumedRef = useRef(false);
 
   useEffect(() => {
+    if (!acceptParentChallenge || !widgetId) return;
+
+    const receiveParentChallenge = (event: MessageEvent) => {
+      if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
+      const message = event.data as { type?: unknown; token?: unknown; widgetId?: unknown };
+      if (message.widgetId !== widgetId) return;
+
+      if (message.type === 'click2call-turnstile-token' && typeof message.token === 'string') {
+        challengeConsumedRef.current = false;
+        setEmbeddingOrigin(event.origin);
+        setTurnstileToken(message.token);
+        setStatus('Authorizing widget...');
+      } else if (message.type === 'click2call-turnstile-expired') {
+        setTurnstileToken(null);
+        setStatus('Browser verification expired');
+      } else if (message.type === 'click2call-turnstile-error') {
+        setTurnstileToken(null);
+        setStatus('Browser verification failed');
+      }
+    };
+
+    window.addEventListener('message', receiveParentChallenge);
+    setStatus('Checking browser...');
+    return () => window.removeEventListener('message', receiveParentChallenge);
+  }, [acceptParentChallenge, widgetId]);
+
+  useEffect(() => {
     if (!widgetId) {
       setStatus('Demo widget is not configured');
       return;
     }
+    if (acceptParentChallenge) return;
     if (!TURNSTILE_SITE_KEY) {
       setStatus('Browser verification is not configured');
       return;
@@ -116,6 +146,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
         theme: 'auto',
         callback: (token: string) => {
           challengeConsumedRef.current = false;
+          setEmbeddingOrigin(getEmbeddingOrigin());
           setTurnstileToken(token);
           setStatus('Authorizing widget…');
         },
@@ -155,7 +186,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       if (widgetIdToRemove && window.turnstile) window.turnstile.remove(widgetIdToRemove);
       turnstileWidgetIdRef.current = null;
     };
-  }, [widgetId]);
+  }, [acceptParentChallenge, widgetId]);
 
   useEffect(() => {
     let newSocket: Socket | null = null;
@@ -166,13 +197,13 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
         setStatus('Demo widget is not configured');
         return;
       }
-      if (!turnstileToken) return;
+      if (!turnstileToken || !embeddingOrigin) return;
 
       const tokenResponse = await fetch(`${SOCKET_SERVER_URL}/widget-call-token/${encodeURIComponent(widgetId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          embeddingOrigin: getEmbeddingOrigin(),
+          embeddingOrigin,
           turnstileToken,
         }),
       });
@@ -182,7 +213,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       if (cancelled) return;
       challengeConsumedRef.current = true;
       const challengeId = turnstileWidgetIdRef.current;
-      if (challengeId && window.turnstile) window.turnstile.remove(challengeId);
+      if (!acceptParentChallenge && challengeId && window.turnstile) window.turnstile.remove(challengeId);
       turnstileWidgetIdRef.current = null;
 
       const socketOptions = {
@@ -328,7 +359,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       setStatus('Unable to connect this widget');
       setIsConnected(false);
       const challengeId = turnstileWidgetIdRef.current;
-      if (challengeId && window.turnstile) window.turnstile.reset(challengeId);
+      if (!acceptParentChallenge && challengeId && window.turnstile) window.turnstile.reset(challengeId);
       setTurnstileToken(null);
     });
 
@@ -337,7 +368,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       console.log('Cleaning up socket connection');
       newSocket?.close();
     };
-  }, [turnstileToken, widgetId]);
+  }, [acceptParentChallenge, embeddingOrigin, turnstileToken, widgetId]);
 
   const startCall = async () => {
     if (!socket || !isConnected || hasUsedPublicCall) return;

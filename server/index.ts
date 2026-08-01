@@ -93,7 +93,7 @@ app.post('/widget-call-token/:widgetId', async (req, res) => {
   const hostOrigin = normalizeOrigin(req.get('origin'));
   const embeddingOrigin = normalizeOrigin(req.body?.embeddingOrigin);
   const turnstileToken = typeof req.body?.turnstileToken === 'string' ? req.body.turnstileToken : '';
-  const allowedHostnames = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || 'click2call.ai')
+  const hostedWidgetHostnames = (process.env.WIDGET_HOSTED_HOSTNAMES || 'click2call.ai')
     .split(',')
     .map((hostname) => hostname.trim().toLowerCase())
     .filter(Boolean);
@@ -106,9 +106,10 @@ app.post('/widget-call-token/:widgetId', async (req, res) => {
   }
 
   const hostHostname = new URL(hostOrigin).hostname.toLowerCase();
-  if (!allowedHostnames.includes(hostHostname)) {
+  if (!hostedWidgetHostnames.includes(hostHostname)) {
     return res.status(403).json({ error: 'Widget authorization failed' });
   }
+  const embeddingHostname = new URL(embeddingOrigin).hostname.toLowerCase();
 
   const { data: widget, error } = await supabase
     .from('widgets')
@@ -129,7 +130,10 @@ app.post('/widget-call-token/:widgetId', async (req, res) => {
   const turnstileVerification = await verifyTurnstileToken({
     expectedAction: 'turnstile-spin-v2',
     expectedCdata: widget.id.replace(/-/g, ''),
-    expectedHostname: hostHostname,
+    // The challenge is rendered by widget.js in the customer's top-level
+    // document. Cloudflare therefore attests the embedding hostname instead
+    // of us trusting the caller's JSON origin assertion.
+    expectedHostname: embeddingHostname,
     remoteIp: req.ip || req.socket.remoteAddress,
     secret: turnstileSecret,
     token: turnstileToken,

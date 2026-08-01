@@ -17,7 +17,8 @@ interface Widget {
 }
 
 function embedCode(widgetId: string): string {
-  return `<script src="https://click2call.ai/widget.js" data-widget-id="${widgetId}" async></script>`;
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
+  return `<script src="https://click2call.ai/widget.js" data-widget-id="${widgetId}" data-turnstile-site-key="${siteKey}" async></script>`;
 }
 
 const WidgetList: React.FC = () => {
