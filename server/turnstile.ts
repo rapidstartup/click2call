@@ -1,3 +1,5 @@
+import { request as httpsRequest } from 'node:https';
+
 interface TurnstileVerifyResult {
   action?: string;
   cdata?: string;
@@ -19,9 +21,57 @@ export interface TurnstileVerification {
   success: boolean;
 }
 
+interface TurnstileHttpResponse {
+  json: () => Promise<unknown>;
+  ok: boolean;
+}
+
+type TurnstileFetch = (
+  url: string,
+  init: {
+    body: URLSearchParams;
+    headers: Record<string, string>;
+    method: 'POST';
+  },
+) => Promise<TurnstileHttpResponse>;
+
+function postTurnstileForm(
+  url: string,
+  init: Parameters<TurnstileFetch>[1],
+): Promise<TurnstileHttpResponse> {
+  const payload = init.body.toString();
+
+  return new Promise((resolve, reject) => {
+    const request = httpsRequest(url, {
+      method: init.method,
+      headers: {
+        ...init.headers,
+        'Content-Length': Buffer.byteLength(payload).toString(),
+      },
+    }, (response) => {
+      let responseBody = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => {
+        responseBody += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          ok: Boolean(response.statusCode && response.statusCode >= 200 && response.statusCode < 300),
+          json: async () => JSON.parse(responseBody) as unknown,
+        });
+      });
+    });
+
+    request.setTimeout(10_000, () => request.destroy(new Error('Turnstile verification timed out')));
+    request.on('error', reject);
+    request.write(payload);
+    request.end();
+  });
+}
+
 export async function verifyTurnstileToken(
   input: VerifyTurnstileInput,
-  fetchImpl: typeof fetch = fetch,
+  fetchImpl: TurnstileFetch = postTurnstileForm,
 ): Promise<TurnstileVerification> {
   if (!input.secret || !input.token) return { success: false, reason: 'missing-input' };
 
