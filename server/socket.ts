@@ -96,7 +96,7 @@ export function setupSocketServer(httpServer: HttpServer) {
 
   io.use(async (socket, next) => {
     const auth = socket.handshake.auth as SocketAuth | undefined;
-    const widgetTokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY || '';
+    const widgetTokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || '';
     const widgetToken = verifyWidgetCallToken(auth?.widgetToken, widgetTokenSecret);
     const requestOrigin = normalizeOrigin(socket.handshake.headers.origin);
     if (widgetToken && requestOrigin && widgetToken.hostOrigin === requestOrigin) {
