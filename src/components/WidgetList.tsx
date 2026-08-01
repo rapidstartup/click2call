@@ -17,7 +17,7 @@ interface Widget {
 }
 
 function embedCode(widgetId: string): string {
-  return `<div data-click2call-widget="${widgetId}"></div>`;
+  return `<script src="https://click2call.ai/widget.js" data-widget-id="${widgetId}" async></script>`;
 }
 
 const WidgetList: React.FC = () => {

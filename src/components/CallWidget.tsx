@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Phone } from 'lucide-react';
 import io, { Socket } from 'socket.io-client';
 import { AudioSettings } from './AudioSettings';
@@ -16,6 +16,18 @@ interface SignalData {
 
 interface CallWidgetProps {
   widgetId?: string;
+}
+
+interface TurnstileApi {
+  remove(widgetId: string): void;
+  render(container: HTMLElement, options: Record<string, unknown>): string;
+  reset(widgetId: string): void;
+}
+
+declare global {
+  interface Window {
+    turnstile?: TurnstileApi;
+  }
 }
 
 const isDev = import.meta.env.DEV;
@@ -40,6 +52,20 @@ const getSocketUrl = () => {
 };
 
 const { url: SOCKET_SERVER_URL, options: defaultOptions } = getSocketUrl();
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
+
+function getEmbeddingOrigin(): string {
+  const ancestorOrigin = window.location.ancestorOrigins?.[0];
+  if (ancestorOrigin) return ancestorOrigin;
+  if (document.referrer) {
+    try {
+      return new URL(document.referrer).origin;
+    } catch {
+      // Fall through to the hosted page origin.
+    }
+  }
+  return window.location.origin;
+}
 
 // Debug logging
 console.log('Socket Configuration:', {
@@ -57,11 +83,79 @@ console.log('Protocol:', window.location.protocol);
 
 const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [status, setStatus] = useState<string>('Ready');
+  const [status, setStatus] = useState<string>('Checking browser…');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
   const [vapiClient, setVapiClient] = useState<Vapi | null>(null);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [hasUsedPublicCall, setHasUsedPublicCall] = useState(false);
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<string | null>(null);
+  const challengeConsumedRef = useRef(false);
+
+  useEffect(() => {
+    if (!widgetId) {
+      setStatus('Demo widget is not configured');
+      return;
+    }
+    if (!TURNSTILE_SITE_KEY) {
+      setStatus('Browser verification is not configured');
+      return;
+    }
+
+    let cancelled = false;
+    let turnstileScript: HTMLScriptElement | null = null;
+    const renderChallenge = () => {
+      if (cancelled || !window.turnstile || !turnstileContainerRef.current || turnstileWidgetIdRef.current) return;
+      turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+        sitekey: TURNSTILE_SITE_KEY,
+        action: 'turnstile-spin-v2',
+        cData: widgetId.replace(/-/g, ''),
+        appearance: 'interaction-only',
+        theme: 'auto',
+        callback: (token: string) => {
+          challengeConsumedRef.current = false;
+          setTurnstileToken(token);
+          setStatus('Authorizing widget…');
+        },
+        'expired-callback': () => {
+          if (challengeConsumedRef.current) return;
+          setTurnstileToken(null);
+          setStatus('Browser verification expired');
+        },
+        'error-callback': () => {
+          if (challengeConsumedRef.current) return;
+          setTurnstileToken(null);
+          setStatus('Browser verification failed');
+        },
+      });
+    };
+
+    if (window.turnstile) {
+      renderChallenge();
+    } else {
+      const existingScript = document.querySelector<HTMLScriptElement>('script[data-click2call-turnstile]');
+      const script = existingScript || document.createElement('script');
+      turnstileScript = script;
+      script.addEventListener('load', renderChallenge);
+      if (!existingScript) {
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.async = true;
+        script.defer = true;
+        script.dataset.click2callTurnstile = 'true';
+        document.head.appendChild(script);
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      turnstileScript?.removeEventListener('load', renderChallenge);
+      const widgetIdToRemove = turnstileWidgetIdRef.current;
+      if (widgetIdToRemove && window.turnstile) window.turnstile.remove(widgetIdToRemove);
+      turnstileWidgetIdRef.current = null;
+    };
+  }, [widgetId]);
 
   useEffect(() => {
     let newSocket: Socket | null = null;
@@ -72,12 +166,24 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
         setStatus('Demo widget is not configured');
         return;
       }
+      if (!turnstileToken) return;
 
-      const tokenResponse = await fetch(`${SOCKET_SERVER_URL}/widget-call-token/${encodeURIComponent(widgetId)}`);
+      const tokenResponse = await fetch(`${SOCKET_SERVER_URL}/widget-call-token/${encodeURIComponent(widgetId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          embeddingOrigin: getEmbeddingOrigin(),
+          turnstileToken,
+        }),
+      });
       if (!tokenResponse.ok) throw new Error('Unable to authorize this widget');
       const tokenPayload = await tokenResponse.json() as { token?: unknown };
       if (typeof tokenPayload.token !== 'string') throw new Error('Widget authorization response was invalid');
       if (cancelled) return;
+      challengeConsumedRef.current = true;
+      const challengeId = turnstileWidgetIdRef.current;
+      if (challengeId && window.turnstile) window.turnstile.remove(challengeId);
+      turnstileWidgetIdRef.current = null;
 
       const socketOptions = {
         ...defaultOptions,
@@ -210,7 +316,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
 
     // Handle call ended
       connectedSocket.on('call-ended', () => {
-      setStatus('Call ended');
+      setStatus('Call ended. Reload the widget to start another call.');
       setIsCalling(false);
     });
 
@@ -221,6 +327,9 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       console.error('Widget connection failed:', error);
       setStatus('Unable to connect this widget');
       setIsConnected(false);
+      const challengeId = turnstileWidgetIdRef.current;
+      if (challengeId && window.turnstile) window.turnstile.reset(challengeId);
+      setTurnstileToken(null);
     });
 
     return () => {
@@ -228,12 +337,13 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
       console.log('Cleaning up socket connection');
       newSocket?.close();
     };
-  }, [widgetId]);
+  }, [turnstileToken, widgetId]);
 
   const startCall = async () => {
-    if (!socket || !isConnected) return;
+    if (!socket || !isConnected || hasUsedPublicCall) return;
 
     try {
+      setHasUsedPublicCall(true);
       setIsCalling(true);
       setStatus('Initiating call...');
 
@@ -301,7 +411,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
     });
 
     setIsCalling(false);
-    setStatus('Ready');
+    setStatus('Call ended. Reload the widget to start another call.');
   };
 
   const handleDeviceSelect = (type: 'input' | 'output', deviceId: string) => {
@@ -321,8 +431,13 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
 
       {/* Status Message */}
       <div className="text-center mb-6">
+        <div
+          ref={turnstileContainerRef}
+          className="cf-turnstile"
+          data-action="turnstile-spin-v2"
+        />
         <p className="text-gray-600">{status}</p>
-        {isConnected && !isCalling && (
+        {isConnected && !isCalling && !hasUsedPublicCall && (
           <p className="text-sm text-gray-500 mt-2">
             Please press the call button below to initiate your free call
           </p>
@@ -351,16 +466,16 @@ const CallWidget: React.FC<CallWidgetProps> = ({ widgetId }) => {
         {!isCalling ? (
           <button
             onClick={startCall}
-            disabled={!isConnected || !widgetId}
+            disabled={!isConnected || !widgetId || hasUsedPublicCall}
             className={`
               w-full py-2 px-4 rounded-md text-sm font-medium
-              ${!isConnected || !widgetId
+              ${!isConnected || !widgetId || hasUsedPublicCall
                 ? 'bg-gray-300 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
               }
             `}
           >
-            Start Call
+            {hasUsedPublicCall ? 'Call completed' : 'Start Call'}
           </button>
         ) : (
           <button

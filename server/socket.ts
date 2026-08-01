@@ -62,11 +62,20 @@ export function setupSocketServer(httpServer: HttpServer) {
     nodeEnv: process.env.NODE_ENV
   });
 
+  const allowedHostnames = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || 'click2call.ai')
+    .split(',')
+    .map((hostname) => hostname.trim().toLowerCase())
+    .filter(Boolean);
+
   const io = new SocketServer(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin || normalizeOrigin(origin)) return callback(null, true);
-        return callback(new Error('Invalid request origin'));
+        if (!origin) return callback(null, true);
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (normalizedOrigin && allowedHostnames.includes(new URL(normalizedOrigin).hostname.toLowerCase())) {
+          return callback(null, true);
+        }
+        return callback(new Error('Request origin is not authorized'));
       },
       methods: ['GET', 'POST'],
       credentials: true,
@@ -90,9 +99,9 @@ export function setupSocketServer(httpServer: HttpServer) {
     const widgetTokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY || '';
     const widgetToken = verifyWidgetCallToken(auth?.widgetToken, widgetTokenSecret);
     const requestOrigin = normalizeOrigin(socket.handshake.headers.origin);
-    if (widgetToken && requestOrigin && widgetToken.origin === requestOrigin) {
+    if (widgetToken && requestOrigin && widgetToken.hostOrigin === requestOrigin) {
       socket.data.widgetId = widgetToken.widgetId;
-      socket.data.widgetOrigin = widgetToken.origin;
+      socket.data.widgetEmbeddingOrigin = widgetToken.embeddingOrigin;
       return next();
     }
 
@@ -147,6 +156,10 @@ export function setupSocketServer(httpServer: HttpServer) {
           if (socket.data.widgetId && !canUseWidget(socket.data.widgetId, data.widgetId)) {
             throw new Error('Widget token does not authorize this widget');
           }
+          if (socket.data.widgetId) {
+            if (socket.data.publicCallUsed) throw new Error('Widget call token has already been used');
+            socket.data.publicCallUsed = true;
+          }
 
           let widgetQuery = supabase
             .from('widgets')
@@ -163,7 +176,10 @@ export function setupSocketServer(httpServer: HttpServer) {
           if (socket.data.widgetId && widget.type !== 'vapi') {
             throw new Error('Public call tokens are only supported for VAPI widgets');
           }
-          if (socket.data.widgetOrigin && !isOriginAllowed(socket.data.widgetOrigin, widget.settings)) {
+          if (
+            socket.data.widgetEmbeddingOrigin
+            && !isOriginAllowed(socket.data.widgetEmbeddingOrigin, widget.settings)
+          ) {
             throw new Error('Widget origin is no longer authorized');
           }
 

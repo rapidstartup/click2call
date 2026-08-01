@@ -12,6 +12,8 @@ module.exports = {
       VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL,
       VITE_SUPABASE_SERVICE_KEY: process.env.VITE_SUPABASE_SERVICE_KEY,
       WIDGET_CALL_TOKEN_SECRET: process.env.WIDGET_CALL_TOKEN_SECRET,
+      TURNSTILE_SECRET: process.env.TURNSTILE_SECRET,
+      TURNSTILE_ALLOWED_HOSTNAMES: process.env.TURNSTILE_ALLOWED_HOSTNAMES || "click2call.ai",
       VITE_SOCKET_SERVER_URL: process.env.VITE_SOCKET_SERVER_URL || "https://io.click2call.ai:3002"
     }
   }]

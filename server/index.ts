@@ -9,6 +9,7 @@ import twilioRoutes from './routes/twilio';
 import { supabase } from './db';
 import { createWidgetCallToken } from './widgetCallToken';
 import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
+import { verifyTurnstileToken } from './turnstile';
 
 const app = express();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -83,14 +84,31 @@ function canIssueWidgetToken(key: string, now = Date.now()): boolean {
   return true;
 }
 
-// Public embeds exchange their public widget ID for a short-lived token that is
-// cryptographically bound to an owner-approved website origin.
-app.get('/widget-call-token/:widgetId', async (req, res) => {
+// Public embeds exchange a verified Turnstile challenge for a short-lived token
+// bound to both our hosted iframe and the owner's approved customer website.
+app.post('/widget-call-token/:widgetId', async (req, res) => {
   const { widgetId } = req.params;
-  const tokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || process.env.VITE_SUPABASE_SERVICE_KEY;
-  const requestOrigin = normalizeOrigin(req.get('origin'));
-  if (!tokenSecret) return res.status(503).json({ error: 'Widget calling is not configured' });
+  const tokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET;
+  const turnstileSecret = process.env.TURNSTILE_SECRET;
+  const hostOrigin = normalizeOrigin(req.get('origin'));
+  const embeddingOrigin = normalizeOrigin(req.body?.embeddingOrigin);
+  const turnstileToken = typeof req.body?.turnstileToken === 'string' ? req.body.turnstileToken : '';
+  const allowedHostnames = (process.env.TURNSTILE_ALLOWED_HOSTNAMES || 'click2call.ai')
+    .split(',')
+    .map((hostname) => hostname.trim().toLowerCase())
+    .filter(Boolean);
+  if (!tokenSecret || !turnstileSecret) {
+    return res.status(503).json({ error: 'Widget calling is not configured' });
+  }
   if (!UUID_PATTERN.test(widgetId)) return res.status(404).json({ error: 'Widget not found' });
+  if (!hostOrigin || !embeddingOrigin || !turnstileToken) {
+    return res.status(403).json({ error: 'Widget authorization failed' });
+  }
+
+  const hostHostname = new URL(hostOrigin).hostname.toLowerCase();
+  if (!allowedHostnames.includes(hostHostname)) {
+    return res.status(403).json({ error: 'Widget authorization failed' });
+  }
 
   const { data: widget, error } = await supabase
     .from('widgets')
@@ -98,7 +116,7 @@ app.get('/widget-call-token/:widgetId', async (req, res) => {
     .eq('id', widgetId)
     .maybeSingle();
   if (error || !widget || widget.type !== 'vapi') return res.status(404).json({ error: 'Widget not found' });
-  if (!requestOrigin || !isOriginAllowed(requestOrigin, widget.settings)) {
+  if (!isOriginAllowed(embeddingOrigin, widget.settings)) {
     return res.status(403).json({ error: 'This website is not authorized for the widget' });
   }
 
@@ -108,9 +126,24 @@ app.get('/widget-call-token/:widgetId', async (req, res) => {
     return res.status(429).json({ error: 'Too many widget authorization requests' });
   }
 
+  const turnstileVerification = await verifyTurnstileToken({
+    expectedAction: 'turnstile-spin-v2',
+    expectedCdata: widget.id.replace(/-/g, ''),
+    expectedHostname: hostHostname,
+    remoteIp: req.ip || req.socket.remoteAddress,
+    secret: turnstileSecret,
+    token: turnstileToken,
+  });
+  if (!turnstileVerification.success) {
+    console.warn('Turnstile rejected widget authorization:', turnstileVerification.reason);
+    return res.status(403).json({ error: 'Widget authorization failed' });
+  }
+
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Vary', 'Origin');
-  return res.json({ token: createWidgetCallToken(widget.id, requestOrigin, tokenSecret) });
+  return res.json({
+    token: createWidgetCallToken(widget.id, hostOrigin, embeddingOrigin, tokenSecret),
+  });
 });
 
 // Create HTTP server - we'll let Nginx handle SSL

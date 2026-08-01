@@ -1,8 +1,9 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 interface WidgetCallTokenPayload {
+  embeddingOrigin: string;
   exp: number;
-  origin: string;
+  hostOrigin: string;
   widgetId: string;
   version: 1;
 }
@@ -15,16 +16,20 @@ function sign(encodedPayload: string, secret: string): string {
 
 export function createWidgetCallToken(
   widgetId: string,
-  origin: string,
+  hostOrigin: string,
+  embeddingOrigin: string,
   secret: string,
   nowMs = Date.now(),
   ttlSeconds = DEFAULT_TTL_SECONDS,
 ): string {
-  if (!widgetId || !origin || !secret) throw new Error('Widget call token configuration is incomplete');
+  if (!widgetId || !hostOrigin || !embeddingOrigin || !secret) {
+    throw new Error('Widget call token configuration is incomplete');
+  }
 
   const payload: WidgetCallTokenPayload = {
+    embeddingOrigin,
     exp: Math.floor(nowMs / 1000) + ttlSeconds,
-    origin,
+    hostOrigin,
     widgetId,
     version: 1,
   };
@@ -52,8 +57,10 @@ export function verifyWidgetCallToken(
       payload.version !== 1
       || typeof payload.widgetId !== 'string'
       || !payload.widgetId
-      || typeof payload.origin !== 'string'
-      || !payload.origin
+      || typeof payload.hostOrigin !== 'string'
+      || !payload.hostOrigin
+      || typeof payload.embeddingOrigin !== 'string'
+      || !payload.embeddingOrigin
       || typeof payload.exp !== 'number'
       || payload.exp <= Math.floor(nowMs / 1000)
     ) {

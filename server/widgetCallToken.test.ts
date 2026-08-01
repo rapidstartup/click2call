@@ -5,17 +5,19 @@ import { createWidgetCallToken, verifyWidgetCallToken } from './widgetCallToken'
 
 const secret = 'test-only-widget-token-secret';
 const widgetId = '11111111-1111-4111-8111-111111111111';
-const origin = 'https://customer.example';
+const hostOrigin = 'https://click2call.ai';
+const embeddingOrigin = 'https://customer.example';
 
 test('widget call tokens are scoped and expire', () => {
-  const token = createWidgetCallToken(widgetId, origin, secret, 1_000_000, 60);
+  const token = createWidgetCallToken(widgetId, hostOrigin, embeddingOrigin, secret, 1_000_000, 60);
   assert.equal(verifyWidgetCallToken(token, secret, 1_030_000)?.widgetId, widgetId);
-  assert.equal(verifyWidgetCallToken(token, secret, 1_030_000)?.origin, origin);
+  assert.equal(verifyWidgetCallToken(token, secret, 1_030_000)?.hostOrigin, hostOrigin);
+  assert.equal(verifyWidgetCallToken(token, secret, 1_030_000)?.embeddingOrigin, embeddingOrigin);
   assert.equal(verifyWidgetCallToken(token, secret, 1_061_000), null);
 });
 
 test('widget call tokens reject missing, tampered, and incorrectly signed values', () => {
-  const token = createWidgetCallToken(widgetId, origin, secret);
+  const token = createWidgetCallToken(widgetId, hostOrigin, embeddingOrigin, secret);
   assert.equal(verifyWidgetCallToken(undefined, secret), null);
   assert.equal(verifyWidgetCallToken(`${token}x`, secret), null);
   assert.equal(verifyWidgetCallToken(token, 'different-secret'), null);

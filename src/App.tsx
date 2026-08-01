@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage.tsx';
 import WidgetManagementPage from './pages/WidgetManagementPage.tsx';
 import CallRoutingPage from './pages/CallRoutingPage.tsx';
 import ReportingPage from './pages/ReportingPage.tsx';
+import EmbedWidgetPage from './pages/EmbedWidgetPage.tsx';
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -34,6 +35,7 @@ function App() {
           <Route path="/pricing" element={<PricingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/embed/:widgetId" element={<EmbedWidgetPage />} />
           
           {/* Protected Routes */}
           <Route path="/dashboard" element={
