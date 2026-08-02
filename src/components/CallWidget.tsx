@@ -9,7 +9,6 @@ interface SignalData {
   timestamp?: number;
   widgetId?: string;
   vapiConfig?: {
-    publicKey: string;
     assistantId: string;
   };
 }
@@ -91,6 +90,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
   const [vapiClient, setVapiClient] = useState<Vapi | null>(null);
   const [embeddingOrigin, setEmbeddingOrigin] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const [widgetCallToken, setWidgetCallToken] = useState<string | null>(null);
   const [hasUsedPublicCall, setHasUsedPublicCall] = useState(false);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
@@ -211,6 +211,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
       const tokenPayload = await tokenResponse.json() as { token?: unknown };
       if (typeof tokenPayload.token !== 'string') throw new Error('Widget authorization response was invalid');
       if (cancelled) return;
+      setWidgetCallToken(tokenPayload.token);
       challengeConsumedRef.current = true;
       const challengeId = turnstileWidgetIdRef.current;
       if (!acceptParentChallenge && challengeId && window.turnstile) window.turnstile.remove(challengeId);
@@ -365,6 +366,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
 
     return () => {
       cancelled = true;
+      setWidgetCallToken(null);
       console.log('Cleaning up socket connection');
       newSocket?.close();
     };
@@ -379,10 +381,13 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
       setStatus('Initiating call...');
 
       // Listen for VAPI configuration if the widget is configured for VAPI
-      socket.once('vapi-config', async (config: { publicKey: string; assistantId: string }) => {
+      socket.once('vapi-config', async (config: { assistantId: string }) => {
         try {
-          // Initialize VAPI client
-          const vapi = new Vapi(config.publicKey);
+          if (!widgetCallToken) throw new Error('Widget call authorization is unavailable');
+
+          // Route the VAPI Web SDK through our server proxy. The browser gets
+          // only the short-lived Click2Call token, never a VAPI credential.
+          const vapi = new Vapi(widgetCallToken, `${SOCKET_SERVER_URL}/vapi-proxy`);
 
           // Set up event handlers
           vapi.on('call-end', () => {

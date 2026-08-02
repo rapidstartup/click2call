@@ -183,10 +183,11 @@ export function setupSocketServer(httpServer: HttpServer) {
             throw new Error('Widget origin is no longer authorized');
           }
 
-          // Only the explicitly public VAPI key may be sent to a browser.
+          // Browser calls use the server-side VAPI proxy. Never send either
+          // stored provider credential over the socket.
           if (widget.type === 'vapi') {
             const publicConfig = toPublicVapiConfig(widget.settings);
-            if (!publicConfig) throw new Error('VAPI public key is not configured');
+            if (!publicConfig) throw new Error('VAPI server configuration is incomplete');
             socket.emit('vapi-config', publicConfig);
           }
 

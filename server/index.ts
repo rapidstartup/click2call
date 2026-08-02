@@ -1,9 +1,11 @@
 import express from 'express';
 import { createServer } from 'http';
+import https from 'https';
 import path from 'path';
 import cors from 'cors';
 import { config } from './config';
 import { setupSocketServer, getServerStats } from './socket';
+import { toPublicVapiConfig, toServerVapiConfig } from './socketSecurity';
 import mobileRoutes from './routes/mobile';
 import twilioRoutes from './routes/twilio';
 import { supabase } from './db';
@@ -83,6 +85,94 @@ function canIssueWidgetToken(key: string, now = Date.now()): boolean {
   current.count += 1;
   return true;
 }
+
+interface VapiProxyResponse {
+  body: string;
+  contentType?: string;
+  statusCode: number;
+}
+
+function requestVapiWebCall(apiKey: string, body: Record<string, unknown>): Promise<VapiProxyResponse> {
+  return new Promise((resolve, reject) => {
+    const request = https.request('https://api.vapi.ai/call/web', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    }, (response) => {
+      let responseBody = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk: string) => {
+        responseBody += chunk;
+      });
+      response.on('end', () => {
+        resolve({
+          body: responseBody,
+          contentType: response.headers['content-type'],
+          statusCode: response.statusCode || 502,
+        });
+      });
+    });
+
+    request.setTimeout(15_000, () => request.destroy(new Error('VAPI request timed out')));
+    request.on('error', reject);
+    request.end(JSON.stringify(body));
+  });
+}
+
+// VAPI's documented proxy architecture keeps provider credentials on the
+// server. The browser supplies only its short-lived Click2Call token and the
+// SDK request is reduced to the configured assistant for this widget.
+app.post('/vapi-proxy/call/web', async (req, res) => {
+  const authorization = req.get('authorization');
+  const widgetToken = authorization?.startsWith('Bearer ')
+    ? authorization.slice('Bearer '.length)
+    : null;
+  const tokenPayload = verifyWidgetCallToken(widgetToken, process.env.WIDGET_CALL_TOKEN_SECRET || '');
+  const requestOrigin = normalizeOrigin(req.get('origin'));
+  if (!tokenPayload || !requestOrigin || tokenPayload.hostOrigin !== requestOrigin) {
+    return res.status(401).json({ error: 'Widget call authorization failed' });
+  }
+
+  const { data: widget, error } = await supabase
+    .from('widgets')
+    .select('type, settings')
+    .eq('id', tokenPayload.widgetId)
+    .maybeSingle();
+  if (error || !widget || widget.type !== 'vapi') {
+    return res.status(404).json({ error: 'Widget not found' });
+  }
+  if (!isOriginAllowed(tokenPayload.embeddingOrigin, widget.settings)) {
+    return res.status(403).json({ error: 'This website is not authorized for the widget' });
+  }
+
+  const serverConfig = toServerVapiConfig(widget.settings);
+  const browserConfig = toPublicVapiConfig(widget.settings);
+  if (!serverConfig || !browserConfig) {
+    return res.status(503).json({ error: 'VAPI server configuration is incomplete' });
+  }
+
+  const requestBody: Record<string, unknown> = {
+    assistantId: browserConfig.assistantId,
+  };
+  if (typeof req.body?.roomDeleteOnUserLeaveEnabled === 'boolean') {
+    requestBody.roomDeleteOnUserLeaveEnabled = req.body.roomDeleteOnUserLeaveEnabled;
+  }
+
+  try {
+    const vapiResponse = await requestVapiWebCall(serverConfig.apiKey, requestBody);
+    if (vapiResponse.statusCode < 200 || vapiResponse.statusCode >= 300) {
+      return res.status(502).json({ error: 'VAPI call initialization failed' });
+    }
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', vapiResponse.contentType || 'application/json');
+    return res.status(vapiResponse.statusCode).send(vapiResponse.body);
+  } catch (proxyError) {
+    console.error('VAPI web-call proxy failed:', proxyError instanceof Error ? proxyError.message : 'Unknown error');
+    return res.status(502).json({ error: 'VAPI call initialization failed' });
+  }
+});
 
 // Public embeds exchange a verified Turnstile challenge for a short-lived token
 // bound to both our hosted iframe and the owner's approved customer website.

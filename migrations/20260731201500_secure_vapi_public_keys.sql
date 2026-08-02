@@ -1,14 +1,14 @@
--- Require a distinct browser-safe VAPI public key for all future VAPI writes.
--- Existing private keys cannot be converted safely, so legacy rows are flagged
--- for an explicit owner update through the widget settings UI.
+-- Browser calls now use the server-side VAPI proxy. Keep any legacy public-key
+-- setting for owner-managed metadata, but never treat an arbitrary second key
+-- as browser-safe or send it to callers.
 
 UPDATE widgets
 SET settings = settings
   || CASE
-    WHEN NOT (settings ? 'vapi_public_key')
-      OR NULLIF(BTRIM(settings->>'vapi_public_key'), '') IS NULL
-      OR BTRIM(settings->>'vapi_public_key') = BTRIM(settings->>'vapi_api_key')
-    THEN '{"vapi_public_key_required":true}'::jsonb
+    WHEN NOT (settings ? 'vapi_api_key')
+      OR jsonb_typeof(settings->'vapi_api_key') <> 'string'
+      OR NULLIF(BTRIM(settings->>'vapi_api_key'), '') IS NULL
+    THEN '{"vapi_api_key_required":true}'::jsonb
     ELSE '{}'::jsonb
   END
   || CASE
@@ -24,9 +24,9 @@ SET settings = settings
   END
 WHERE type = 'vapi'
   AND (
-    NOT (settings ? 'vapi_public_key')
-    OR NULLIF(BTRIM(settings->>'vapi_public_key'), '') IS NULL
-    OR BTRIM(settings->>'vapi_public_key') = BTRIM(settings->>'vapi_api_key')
+    NOT (settings ? 'vapi_api_key')
+    OR jsonb_typeof(settings->'vapi_api_key') <> 'string'
+    OR NULLIF(BTRIM(settings->>'vapi_api_key'), '') IS NULL
     OR NOT (settings ? 'allowed_origins')
     OR jsonb_typeof(settings->'allowed_origins') <> 'array'
     OR CASE
@@ -42,14 +42,10 @@ BEGIN
   IF NEW.type = 'vapi' THEN
     IF NOT (
       NEW.settings ? 'vapi_api_key' AND
-      NEW.settings ? 'vapi_public_key' AND
       jsonb_typeof(NEW.settings->'vapi_api_key') = 'string' AND
-      jsonb_typeof(NEW.settings->'vapi_public_key') = 'string' AND
-      NULLIF(BTRIM(NEW.settings->>'vapi_api_key'), '') IS NOT NULL AND
-      NULLIF(BTRIM(NEW.settings->>'vapi_public_key'), '') IS NOT NULL AND
-      BTRIM(NEW.settings->>'vapi_api_key') <> BTRIM(NEW.settings->>'vapi_public_key')
+      NULLIF(BTRIM(NEW.settings->>'vapi_api_key'), '') IS NOT NULL
     ) THEN
-      RAISE EXCEPTION 'VAPI widgets require distinct private and public keys';
+      RAISE EXCEPTION 'VAPI widgets require a private API key';
     END IF;
 
     IF NOT (
@@ -67,7 +63,7 @@ BEGIN
       RAISE EXCEPTION 'VAPI widgets require at least one valid allowed origin';
     END IF;
 
-    NEW.settings = NEW.settings - 'vapi_public_key_required' - 'allowed_origins_required';
+    NEW.settings = NEW.settings - 'vapi_api_key_required' - 'vapi_public_key_required' - 'allowed_origins_required';
 
     IF NEW.settings ? 'vapi_assistant_id' AND NOT (
       NEW.settings ? 'vapi_assistant_name' AND
