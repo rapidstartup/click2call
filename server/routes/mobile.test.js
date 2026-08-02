@@ -3,8 +3,8 @@ const http = require('node:http');
 const test = require('node:test');
 const express = require('express');
 
-process.env.VITE_SUPABASE_URL = 'https://example.supabase.co';
-process.env.VITE_SUPABASE_SERVICE_KEY = 'test-service-key';
+process.env.SUPABASE_URL = 'https://example.supabase.co';
+process.env.SUPABASE_SERVICE_KEY = 'test-service-key';
 
 const { supabase } = require('../dist/db');
 const mobileRoutes = require('../dist/routes/mobile').default;

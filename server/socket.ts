@@ -2,6 +2,9 @@ import { Server as SocketServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { config } from './config';
 import { supabase } from './db';
+import { canUseWidget, toPublicVapiConfig } from './socketSecurity';
+import { verifyWidgetCallToken } from './widgetCallToken';
+import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 
 // Track server statistics
 export interface ServerStats {
@@ -13,6 +16,11 @@ export interface ServerStats {
   lastDisconnection: string | null;
   uptime: number;
   startTime: number;
+}
+
+interface SocketAuth {
+  token?: unknown;
+  widgetToken?: unknown;
 }
 
 const stats: ServerStats = {
@@ -54,9 +62,21 @@ export function setupSocketServer(httpServer: HttpServer) {
     nodeEnv: process.env.NODE_ENV
   });
 
+  const allowedHostnames = (process.env.WIDGET_HOSTED_HOSTNAMES || 'click2call.ai')
+    .split(',')
+    .map((hostname) => hostname.trim().toLowerCase())
+    .filter(Boolean);
+
   const io = new SocketServer(httpServer, {
     cors: {
-      origin: '*',  // Allow all origins for the widget
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const normalizedOrigin = normalizeOrigin(origin);
+        if (normalizedOrigin && allowedHostnames.includes(new URL(normalizedOrigin).hostname.toLowerCase())) {
+          return callback(null, true);
+        }
+        return callback(new Error('Request origin is not authorized'));
+      },
       methods: ['GET', 'POST'],
       credentials: true,
       preflightContinue: false,
@@ -71,27 +91,42 @@ export function setupSocketServer(httpServer: HttpServer) {
     allowUpgrades: true,
     perMessageDeflate: {
       threshold: 2048
-    },
-    allowRequest: (req, callback) => {
-      console.log('Socket.IO handshake request:', {
-        headers: req.headers,
-        url: req.url,
-        method: req.method,
-        address: req.connection?.remoteAddress,
-        timestamp: new Date().toISOString()
-      });
-      callback(null, true);
     }
   });
 
-  io.engine.on("headers", (headers, req) => {
-    console.log('Socket.IO handshake headers:', {
-      requestHeaders: req.headers,
-      responseHeaders: headers,
-      url: req.url,
-      method: req.method,
-      address: req.connection.remoteAddress
-    });
+  io.use(async (socket, next) => {
+    const auth = socket.handshake.auth as SocketAuth | undefined;
+    const widgetTokenSecret = process.env.WIDGET_CALL_TOKEN_SECRET || '';
+    const widgetToken = verifyWidgetCallToken(auth?.widgetToken, widgetTokenSecret);
+    const requestOrigin = normalizeOrigin(socket.handshake.headers.origin);
+    if (widgetToken && requestOrigin && widgetToken.hostOrigin === requestOrigin) {
+      socket.data.widgetId = widgetToken.widgetId;
+      socket.data.widgetEmbeddingOrigin = widgetToken.embeddingOrigin;
+      return next();
+    }
+
+    const bearerHeader = socket.handshake.headers.authorization;
+    const token = typeof auth?.token === 'string'
+      ? auth.token
+      : typeof bearerHeader === 'string' && bearerHeader.startsWith('Bearer ')
+        ? bearerHeader.slice('Bearer '.length)
+        : null;
+
+    if (!token) {
+      return next(new Error('A valid widget call token or user session is required'));
+    }
+
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser(token);
+      if (error || !user) {
+        return next(new Error('Invalid authentication token'));
+      }
+
+      socket.data.userId = user.id;
+      next();
+    } catch {
+      next(new Error('Invalid authentication token'));
+    }
   });
 
   io.on("connection", (socket) => {
@@ -104,8 +139,6 @@ export function setupSocketServer(httpServer: HttpServer) {
       id: socket.id,
       origin: socket.handshake.headers.origin,
       transport: socket.conn.transport.name,
-      headers: socket.handshake.headers,
-      query: socket.handshake.query,
       secure: socket.handshake.secure,
       protocol: socket.handshake.headers['x-forwarded-proto'] || 'unknown',
       address: socket.handshake.address,
@@ -120,29 +153,42 @@ export function setupSocketServer(httpServer: HttpServer) {
       if (data.type === 'call-start' && data.widgetId) {
         try {
           // Get widget configuration
-          const { data: widget, error } = await supabase
+          if (socket.data.widgetId && !canUseWidget(socket.data.widgetId, data.widgetId)) {
+            throw new Error('Widget token does not authorize this widget');
+          }
+          if (socket.data.widgetId) {
+            if (socket.data.publicCallUsed) throw new Error('Widget call token has already been used');
+            socket.data.publicCallUsed = true;
+          }
+
+          let widgetQuery = supabase
             .from('widgets')
-            .select('*')
-            .eq('id', data.widgetId)
-            .single();
+            .select('type, settings')
+            .eq('id', data.widgetId);
+          if (!socket.data.widgetId) {
+            widgetQuery = widgetQuery.eq('user_id', socket.data.userId);
+          }
+          const { data: widget, error } = await widgetQuery.single();
 
           if (error || !widget) {
             throw new Error('Widget not found');
           }
+          if (socket.data.widgetId && widget.type !== 'vapi') {
+            throw new Error('Public call tokens are only supported for VAPI widgets');
+          }
+          if (
+            socket.data.widgetEmbeddingOrigin
+            && !isOriginAllowed(socket.data.widgetEmbeddingOrigin, widget.settings)
+          ) {
+            throw new Error('Widget origin is no longer authorized');
+          }
 
-          // For VAPI widgets, send VAPI configuration to the browser.
-          // Prefer public key for client-side Web SDK; fall back to private for legacy rows.
-          if (widget.type === 'vapi' && widget.settings?.vapi_assistant_id) {
-            const clientKey =
-              widget.settings.vapi_public_key ||
-              widget.settings.vapi_api_key;
-
-            if (clientKey) {
-              socket.emit('vapi-config', {
-                apiKey: clientKey,
-                assistantId: widget.settings.vapi_assistant_id
-              });
-            }
+          // Browser calls use the server-side VAPI proxy. Never send either
+          // stored provider credential over the socket.
+          if (widget.type === 'vapi') {
+            const publicConfig = toPublicVapiConfig(widget.settings);
+            if (!publicConfig) throw new Error('VAPI server configuration is incomplete');
+            socket.emit('vapi-config', publicConfig);
           }
 
           // Update stats and create call session

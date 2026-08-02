@@ -1,1 +1,4 @@
-/* /index.html 200 
+# Keep function-backed API requests ahead of the SPA fallback.
+/api/* /.netlify/functions/:splat 200
+
+/* /index.html 200

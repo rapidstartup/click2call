@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
+import { supabase } from '../lib/supabase';
 
 type User = {
   id: string;
@@ -36,6 +37,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const tokenStr = await SecureStore.getItemAsync('token');
         
         if (userJson && tokenStr) {
+          const { data: { user: authUser }, error } = await supabase.auth.getUser(tokenStr);
+          if (error || !authUser) throw new Error('Stored session is no longer valid');
           setUser(JSON.parse(userJson));
           router.replace('/(app)/(tabs)/');
         } else {
@@ -43,6 +46,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (error) {
         console.error('Failed to load auth state:', error);
+        await SecureStore.deleteItemAsync('user');
+        await SecureStore.deleteItemAsync('token');
+        setUser(null);
+        router.replace('/(auth)/login');
       } finally {
         setIsLoading(false);
       }
@@ -55,22 +62,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // Normally we'd make an API call here
-      // For now, we'll simulate a successful login with mock data
-      const mockResponse = {
-        user: {
-          id: '123456',
-          email: email,
-          name: 'Demo User',
-        },
-        token: 'mock-jwt-token',
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error || !data.user || !data.session) throw error || new Error('Authentication failed');
+      const authenticatedUser: User = {
+        id: data.user.id,
+        email: data.user.email || email,
+        name: typeof data.user.user_metadata?.name === 'string'
+          ? data.user.user_metadata.name
+          : data.user.email?.split('@')[0] || 'User',
       };
       
       // Store the user data and token in secure storage
-      await SecureStore.setItemAsync('user', JSON.stringify(mockResponse.user));
-      await SecureStore.setItemAsync('token', mockResponse.token);
+      await SecureStore.setItemAsync('user', JSON.stringify(authenticatedUser));
+      await SecureStore.setItemAsync('token', data.session.access_token);
       
-      setUser(mockResponse.user);
+      setUser(authenticatedUser);
       router.replace('/(app)/(tabs)/');
     } catch (error) {
       console.error('Sign in failed:', error);
@@ -85,6 +91,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(true);
       await SecureStore.deleteItemAsync('user');
       await SecureStore.deleteItemAsync('token');
+      await supabase.auth.signOut();
       setUser(null);
       router.replace('/(auth)/login');
     } catch (error) {

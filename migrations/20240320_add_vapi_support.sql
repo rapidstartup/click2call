@@ -5,7 +5,7 @@ ALTER TABLE widgets ADD CONSTRAINT widgets_type_check
 
 -- Add comment to document settings structure
 COMMENT ON COLUMN widgets.settings IS E'JSON settings for the widget. Structure varies by type:\n'
-  '- For VAPI widgets: { "vapi_api_key": string, "vapi_assistant_id": string, "vapi_assistant_name": string }\n'
+  '- For VAPI widgets: { "vapi_api_key": string, "vapi_public_key": string, "vapi_assistant_id": string, "vapi_assistant_name": string }\n'
   '- For SIP trunk widgets: { "twilio_account_sid": string, "twilio_auth_token": string, "twilio_domain_sid": string, "twilio_domain_name": string }';
 
 -- Create a function to validate widget settings
@@ -73,4 +73,4 @@ DROP FUNCTION IF EXISTS validate_widget_settings();
 ALTER TABLE widgets DROP CONSTRAINT widgets_type_check;
 ALTER TABLE widgets ADD CONSTRAINT widgets_type_check 
   CHECK (type IN ('call2app', 'siptrunk', 'aibot', 'email'));
-*/ 
+*/
