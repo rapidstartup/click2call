@@ -9,7 +9,7 @@ import { toPublicVapiConfig, toServerVapiConfig } from './socketSecurity';
 import mobileRoutes from './routes/mobile';
 import twilioRoutes from './routes/twilio';
 import { supabase } from './db';
-import { createWidgetCallToken } from './widgetCallToken';
+import { createWidgetCallToken, verifyWidgetCallToken } from './widgetCallToken';
 import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 import { verifyTurnstileToken } from './turnstile';
 
