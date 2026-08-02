@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const SignupPage = () => {
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const prefilledEmail = useMemo(
+    () => searchParams.get('email')?.trim() || '',
+    [searchParams]
+  );
+  const fromDemo = searchParams.get('from') === 'demo';
+
+  const [email, setEmail] = useState(prefilledEmail);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -36,8 +43,13 @@ const SignupPage = () => {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Create your account
+          {fromDemo ? 'Claim your free widget' : 'Create your account'}
         </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          {fromDemo
+            ? 'You tried the demo — finish setup and embed Click2Call on your site.'
+            : 'Start receiving web calls in minutes.'}
+        </p>
         <p className="mt-2 text-center text-sm text-gray-600">
           Already have an account?{' '}
           <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">

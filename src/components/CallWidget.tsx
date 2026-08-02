@@ -1,21 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Phone } from 'lucide-react';
-import io, { Socket } from 'socket.io-client';
-import { AudioSettings } from './AudioSettings';
 import Vapi from '@vapi-ai/web';
+import { ArrowRight, CheckCircle2, Mic, Phone, PhoneOff, Sparkles } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import io, { Socket } from 'socket.io-client';
 
-interface SignalData {
-  type: string;
-  timestamp?: number;
-  widgetId?: string;
-  vapiConfig?: {
-    assistantId: string;
-  };
-}
+import { AudioSettings } from './AudioSettings';
+
+export type CallWidgetMode = 'embed' | 'demo';
 
 interface CallWidgetProps {
   acceptParentChallenge?: boolean;
   widgetId?: string;
+  /** demo = homepage conversion experience; embed = customer widget */
+  mode?: CallWidgetMode;
+  className?: string;
+  onCallStart?: () => void;
+  onCallEnd?: (outcome: 'completed' | 'error' | 'cancelled') => void;
 }
 
 interface TurnstileApi {
@@ -31,23 +31,21 @@ declare global {
 }
 
 const isDev = import.meta.env.DEV;
-const isSecure = window.location.protocol === 'https:';
 
-// Force WSS in production, allow WS in dev
 const getSocketUrl = () => {
   if (isDev) {
     return {
       url: 'http://localhost:3002',
-      options: { secure: false }
+      options: { secure: false as const },
     };
   }
   return {
     url: import.meta.env.VITE_SOCKET_SERVER_URL || 'https://io.click2call.ai',
-    options: { 
-      secure: true,
+    options: {
+      secure: true as const,
       rejectUnauthorized: false,
-      path: '/socket.io/'
-    }
+      path: '/socket.io/',
+    },
   };
 };
 
@@ -67,34 +65,38 @@ function getEmbeddingOrigin(): string {
   return window.location.origin;
 }
 
-// Debug logging
-console.log('Socket Configuration:', {
-  url: SOCKET_SERVER_URL,
-  isSecure: isSecure,
-  protocol: window.location.protocol,
-  host: window.location.host,
-  origin: window.location.origin,
-  timestamp: new Date().toISOString()
-});
-
-console.log('Socket URL:', SOCKET_SERVER_URL);
-console.log('Is Secure:', isSecure);
-console.log('Protocol:', window.location.protocol);
-
-const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, widgetId }) => {
+const CallWidget: React.FC<CallWidgetProps> = ({
+  acceptParentChallenge = false,
+  widgetId,
+  mode = 'embed',
+  className = '',
+  onCallStart,
+  onCallEnd,
+}) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<string>('Checking browser…');
   const [isConnected, setIsConnected] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
   const [showAudioSettings, setShowAudioSettings] = useState(false);
-  const [vapiClient, setVapiClient] = useState<Vapi | null>(null);
   const [embeddingOrigin, setEmbeddingOrigin] = useState<string | null>(null);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [widgetCallToken, setWidgetCallToken] = useState<string | null>(null);
   const [hasUsedPublicCall, setHasUsedPublicCall] = useState(false);
+  const [hasTriedCall, setHasTriedCall] = useState(false);
+  const [showConversion, setShowConversion] = useState(false);
+  const [leadEmail, setLeadEmail] = useState('');
+  const [callError, setCallError] = useState<string | null>(null);
+
+  const vapiRef = useRef<Vapi | null>(null);
+  const isCallingRef = useRef(false);
+  const callAttemptRef = useRef(0);
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const challengeConsumedRef = useRef(false);
+
+  useEffect(() => {
+    isCallingRef.current = isCalling;
+  }, [isCalling]);
 
   useEffect(() => {
     if (!acceptParentChallenge || !widgetId) return;
@@ -108,7 +110,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
         challengeConsumedRef.current = false;
         setEmbeddingOrigin(event.origin);
         setTurnstileToken(message.token);
-        setStatus('Authorizing widget...');
+        setStatus('Authorizing widget…');
       } else if (message.type === 'click2call-turnstile-expired') {
         setTurnstileToken(null);
         setStatus('Browser verification expired');
@@ -119,7 +121,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
     };
 
     window.addEventListener('message', receiveParentChallenge);
-    setStatus('Checking browser...');
+    setStatus('Checking browser…');
     return () => window.removeEventListener('message', receiveParentChallenge);
   }, [acceptParentChallenge, widgetId]);
 
@@ -137,7 +139,14 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
     let cancelled = false;
     let turnstileScript: HTMLScriptElement | null = null;
     const renderChallenge = () => {
-      if (cancelled || !window.turnstile || !turnstileContainerRef.current || turnstileWidgetIdRef.current) return;
+      if (
+        cancelled ||
+        !window.turnstile ||
+        !turnstileContainerRef.current ||
+        turnstileWidgetIdRef.current
+      ) {
+        return;
+      }
       turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
         sitekey: TURNSTILE_SITE_KEY,
         action: 'turnstile-spin-v2',
@@ -166,7 +175,9 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
     if (window.turnstile) {
       renderChallenge();
     } else {
-      const existingScript = document.querySelector<HTMLScriptElement>('script[data-click2call-turnstile]');
+      const existingScript = document.querySelector<HTMLScriptElement>(
+        'script[data-click2call-turnstile]'
+      );
       const script = existingScript || document.createElement('script');
       turnstileScript = script;
       script.addEventListener('load', renderChallenge);
@@ -182,14 +193,14 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
     return () => {
       cancelled = true;
       turnstileScript?.removeEventListener('load', renderChallenge);
-      const widgetIdToRemove = turnstileWidgetIdRef.current;
-      if (widgetIdToRemove && window.turnstile) window.turnstile.remove(widgetIdToRemove);
+      const challengeId = turnstileWidgetIdRef.current;
+      if (challengeId && window.turnstile) window.turnstile.remove(challengeId);
       turnstileWidgetIdRef.current = null;
     };
   }, [acceptParentChallenge, widgetId]);
 
   useEffect(() => {
-    let newSocket: Socket | null = null;
+    let connectedSocket: Socket | null = null;
     let cancelled = false;
 
     const connectSocket = async () => {
@@ -199,158 +210,66 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
       }
       if (!turnstileToken || !embeddingOrigin) return;
 
-      const tokenResponse = await fetch(`${SOCKET_SERVER_URL}/widget-call-token/${encodeURIComponent(widgetId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          embeddingOrigin,
-          turnstileToken,
-        }),
-      });
+      const tokenResponse = await fetch(
+        `${SOCKET_SERVER_URL}/widget-call-token/${encodeURIComponent(widgetId)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ embeddingOrigin, turnstileToken }),
+        }
+      );
       if (!tokenResponse.ok) throw new Error('Unable to authorize this widget');
-      const tokenPayload = await tokenResponse.json() as { token?: unknown };
-      if (typeof tokenPayload.token !== 'string') throw new Error('Widget authorization response was invalid');
+      const tokenPayload = (await tokenResponse.json()) as { token?: unknown };
+      if (typeof tokenPayload.token !== 'string') {
+        throw new Error('Widget authorization response was invalid');
+      }
       if (cancelled) return;
+
       setWidgetCallToken(tokenPayload.token);
       challengeConsumedRef.current = true;
       const challengeId = turnstileWidgetIdRef.current;
-      if (!acceptParentChallenge && challengeId && window.turnstile) window.turnstile.remove(challengeId);
+      if (!acceptParentChallenge && challengeId && window.turnstile) {
+        window.turnstile.remove(challengeId);
+      }
       turnstileWidgetIdRef.current = null;
 
-      const socketOptions = {
+      connectedSocket = io(SOCKET_SERVER_URL, {
         ...defaultOptions,
         auth: { widgetToken: tokenPayload.token },
-        transports: ['websocket', 'polling'],  // Allow polling fallback
-        reconnectionAttempts: 5,  // Increase retry attempts
+        transports: ['websocket', 'polling'] as string[],
+        reconnectionAttempts: 8,
         reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000,  // Cap maximum delay
-        timeout: 20000,  // Increase timeout
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
         forceNew: true,
-        rememberUpgrade: true,
-        timestampRequests: true,
         upgrade: true,
         autoConnect: true,
-        // Add additional debug options
-        debug: true
-      };
-
-      console.log('Connecting with options:', {
-        url: SOCKET_SERVER_URL,
-        transports: socketOptions.transports,
-        timestamp: new Date().toISOString()
       });
 
-      const connectedSocket = io(SOCKET_SERVER_URL, socketOptions);
-      newSocket = connectedSocket;
-
-      // Debug transport state using socket.io events
-      connectedSocket.on("connect_error", (error) => {
-      console.log('Connection error:', {
-        error: error.message,
-        name: error.name,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
+      connectedSocket.on('connect', () => {
+        setIsConnected(true);
+        setStatus(mode === 'demo' ? 'Ready — talk to our AI demo' : 'Ready');
       });
-    });
-
-      connectedSocket.on("connect", () => {
-      console.log('Socket connected:', {
-        id: connectedSocket.id,
-        timestamp: new Date().toISOString()
+      connectedSocket.on('disconnect', () => {
+        setIsConnected(false);
+        if (!isCallingRef.current) setStatus('Reconnecting…');
       });
-      setIsConnected(true);  // Set connection state to true
-      setStatus('Ready');  // Update status to show we're ready
-    });
-
-      // Debug packet events
-      connectedSocket.io.on("packet", (packet) => {
-      console.log('Socket packet:', {
-        type: packet.type,
-        data: packet.data,
-        timestamp: new Date().toISOString()
+      connectedSocket.on('connect_error', () => {
+        setIsConnected(false);
+        setStatus('Connection error. Retrying…');
       });
-    });
-
-      // Debug engine packet events
-      connectedSocket.io.engine.on("packet", (packet) => {
-      console.log('Engine packet:', {
-        type: packet.type,
-        data: packet.data,
-        timestamp: new Date().toISOString()
+      connectedSocket.on('error', () => {
+        setIsConnected(false);
+        setStatus('Connection error occurred');
       });
-    });
-
-      // Debug upgrading
-      connectedSocket.io.engine.on("upgrading", (transport) => {
-      console.log('Socket upgrading:', {
-        transport: transport.name,
-        timestamp: new Date().toISOString()
+      connectedSocket.on('call-status', (data: { status: string; message: string }) => {
+        setStatus(data.message);
       });
-    });
-
-      // Debug upgrade complete
-      connectedSocket.io.engine.on("upgrade", (transport) => {
-      console.log('Socket upgraded:', {
-        transport: transport.name,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-      connectedSocket.on('disconnect', (reason) => {
-      console.log('Disconnected from server:', {
-        reason,
-        wasConnected: connectedSocket.connected,
-        timestamp: new Date().toISOString()
-      });
-      setIsConnected(false);
-      setStatus('Reconnecting...');
-    });
-
-      connectedSocket.on('connect_error', (error) => {
-      console.log('Connection error:', {
-        error: error.message,
-        name: error.name,
-        stack: error.stack,
-        timestamp: new Date().toISOString()
-      });
-      setStatus('Connection error. Retrying...');
-      setIsConnected(false);
-    });
-
-      connectedSocket.on('error', (error) => {
-      console.error('Socket error:', {
-        error: error.toString(),
-        stack: error instanceof Error ? error.stack : undefined,
-        timestamp: new Date().toISOString()
-      });
-      setStatus('Connection error occurred');
-      setIsConnected(false);
-    });
-
-      connectedSocket.on('signal', (data: SignalData) => {
-      console.log('Signal received:', {
-        data,
-        timestamp: new Date().toISOString()
-      });
-    });
-
-    // Handle call status updates
-      connectedSocket.on('call-status', (data: { status: string, message: string }) => {
-      console.log('Call status update:', data);
-      setStatus(data.message);
-    });
-
-    // Handle call established
       connectedSocket.on('call-established', () => {
-      setStatus('Call connected');
-      setIsCalling(true);
-    });
-
-    // Handle call ended
-      connectedSocket.on('call-ended', () => {
-      setStatus('Call ended. Reload the widget to start another call.');
-      setIsCalling(false);
-    });
+        setStatus(mode === 'demo' ? 'You are live with Clicko' : 'Call connected');
+        setIsCalling(true);
+      });
+      connectedSocket.on('call-ended', () => setIsCalling(false));
 
       setSocket(connectedSocket);
     };
@@ -360,178 +279,319 @@ const CallWidget: React.FC<CallWidgetProps> = ({ acceptParentChallenge = false, 
       setStatus('Unable to connect this widget');
       setIsConnected(false);
       const challengeId = turnstileWidgetIdRef.current;
-      if (!acceptParentChallenge && challengeId && window.turnstile) window.turnstile.reset(challengeId);
+      if (!acceptParentChallenge && challengeId && window.turnstile) {
+        window.turnstile.reset(challengeId);
+      }
       setTurnstileToken(null);
     });
 
     return () => {
       cancelled = true;
       setWidgetCallToken(null);
-      console.log('Cleaning up socket connection');
-      newSocket?.close();
+      connectedSocket?.close();
     };
-  }, [acceptParentChallenge, embeddingOrigin, turnstileToken, widgetId]);
+  }, [acceptParentChallenge, embeddingOrigin, mode, turnstileToken, widgetId]);
+
+  const finishCall = useCallback(
+    (outcome: 'completed' | 'error' | 'cancelled', message?: string) => {
+      const vapi = vapiRef.current;
+      vapiRef.current = null;
+      if (vapi) {
+        try {
+          vapi.stop();
+        } catch {
+          // The provider session may already be closed.
+        }
+      }
+
+      if (socket?.connected) {
+        socket.emit('signal', {
+          type: 'call-end',
+          timestamp: Date.now(),
+          widgetId,
+        });
+      }
+
+      setIsCalling(false);
+      setHasTriedCall(true);
+      if (outcome === 'error') {
+        setCallError(message || 'Call failed. Please reload and try again.');
+        setStatus('Could not complete call');
+      } else {
+        setCallError(null);
+        setStatus(mode === 'demo' ? 'Demo complete — claim your widget' : 'Call ended');
+      }
+      if (mode === 'demo') setShowConversion(true);
+      onCallEnd?.(outcome);
+    },
+    [mode, onCallEnd, socket, widgetId]
+  );
 
   const startCall = async () => {
-    if (!socket || !isConnected || hasUsedPublicCall) return;
+    if (!socket || !isConnected || !widgetCallToken || !widgetId || hasUsedPublicCall) return;
+    const attemptId = ++callAttemptRef.current;
 
     try {
       setHasUsedPublicCall(true);
+      setHasTriedCall(true);
+      setCallError(null);
+      setShowConversion(false);
       setIsCalling(true);
-      setStatus('Initiating call...');
+      setStatus('Connecting you…');
+      onCallStart?.();
 
-      // Listen for VAPI configuration if the widget is configured for VAPI
       socket.once('vapi-config', async (config: { assistantId: string }) => {
+        if (attemptId !== callAttemptRef.current) return;
         try {
-          if (!widgetCallToken) throw new Error('Widget call authorization is unavailable');
-
-          // Route the VAPI Web SDK through our server proxy. The browser gets
-          // only the short-lived Click2Call token, never a VAPI credential.
+          // Route the Web SDK through Click2Call. The short-lived widget token
+          // is the only credential the browser receives.
           const vapi = new Vapi(widgetCallToken, `${SOCKET_SERVER_URL}/vapi-proxy`);
-
-          // Set up event handlers
+          vapiRef.current = vapi;
           vapi.on('call-end', () => {
-            endCall();
+            if (attemptId === callAttemptRef.current) finishCall('completed');
           });
-
           vapi.on('error', (error: Error) => {
             console.error('VAPI call error:', error);
-            setStatus('Call error occurred');
-            endCall();
+            if (attemptId === callAttemptRef.current) {
+              finishCall('error', 'Voice session failed. Check mic permissions and reload to retry.');
+            }
           });
 
-          // Start VAPI call with assistant ID
           const call = await vapi.start(config.assistantId);
-          if (!call) {
-            throw new Error('Failed to start VAPI call');
-          }
-
-          setVapiClient(vapi);
-
+          if (attemptId !== callAttemptRef.current) return;
+          if (!call) throw new Error('Failed to start VAPI call');
+          setStatus(mode === 'demo' ? 'You are live with Clicko' : 'Call connected');
         } catch (error: unknown) {
           console.error('Error initializing VAPI:', error);
-          setStatus('Failed to connect to AI assistant');
-          endCall();
+          if (attemptId === callAttemptRef.current) {
+            finishCall('error', 'Could not start the AI assistant. Please reload and try again.');
+          }
         }
       });
 
-      // Register the one-shot response listener before emitting to avoid losing
-      // a fast server response.
+      // Register the response listener before emitting so a fast server reply
+      // cannot be lost.
       socket.emit('signal', {
         type: 'call-start',
         timestamp: Date.now(),
-        widgetId
+        widgetId,
       });
 
+      window.setTimeout(() => {
+        if (
+          attemptId === callAttemptRef.current &&
+          isCallingRef.current &&
+          !vapiRef.current
+        ) {
+          finishCall('error', 'No assistant configuration received. Please reload and try again.');
+        }
+      }, 15000);
     } catch (error: unknown) {
       console.error('Error starting call:', error);
-      setStatus('Failed to start call');
-      setIsCalling(false);
+      finishCall('error', 'Failed to start call');
     }
-  };
-
-  const endCall = () => {
-    if (!socket || !isConnected) return;
-
-    // Clean up VAPI client if it exists
-    if (vapiClient) {
-      vapiClient.stop();
-      setVapiClient(null);
-    }
-
-    // Send call end signal
-    socket.emit('signal', {
-      type: 'call-end',
-      timestamp: Date.now(),
-      widgetId: widgetId
-    });
-
-    setIsCalling(false);
-    setStatus('Call ended. Reload the widget to start another call.');
   };
 
   const handleDeviceSelect = (type: 'input' | 'output', deviceId: string) => {
-    // Optional: Handle device selection for users who want to change from default
     console.log(`Selected ${type} device: ${deviceId}`);
   };
 
-  return (
-    <div className="w-[300px] bg-white rounded-lg shadow-lg p-6">
-      {/* Header */}
-      <div className="flex items-center justify-center mb-6">
-        <div className="bg-blue-600 p-2 rounded-full">
-          <Phone className="w-6 h-6 text-white" />
-        </div>
-        <h2 className="text-xl font-semibold ml-2">Click2Call</h2>
-      </div>
+  const signupHref = leadEmail.trim()
+    ? `/signup?email=${encodeURIComponent(leadEmail.trim())}&from=demo`
+    : '/signup?from=demo';
+  const isDemo = mode === 'demo';
 
-      {/* Status Message */}
-      <div className="text-center mb-6">
-        <div
-          ref={turnstileContainerRef}
-          className="cf-turnstile"
-          data-action="turnstile-spin-v2"
-        />
-        <p className="text-gray-600">{status}</p>
-        {isConnected && !isCalling && !hasUsedPublicCall && (
-          <p className="text-sm text-gray-500 mt-2">
-            Please press the call button below to initiate your free call
+  return (
+    <div
+      className={[
+        'w-full max-w-[360px] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/5',
+        className,
+      ].join(' ')}
+    >
+      <div className="h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400" />
+      <div className="p-6">
+        <div className="mb-5 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={[
+                'flex h-11 w-11 items-center justify-center rounded-full',
+                isCalling
+                  ? 'animate-pulse bg-emerald-500'
+                  : isConnected
+                    ? 'bg-blue-600'
+                    : 'bg-slate-300',
+              ].join(' ')}
+            >
+              <Phone className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold leading-tight text-slate-900">
+                {isDemo ? 'Live demo' : 'Click2Call'}
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500">
+                {isDemo ? 'Talk to Clicko, our AI host' : 'Web calling widget'}
+              </p>
+            </div>
+          </div>
+          {isDemo && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Live
+            </span>
+          )}
+        </div>
+
+        <div className="mb-5 rounded-xl bg-slate-50 px-4 py-3 text-center ring-1 ring-slate-100">
+          <div
+            ref={turnstileContainerRef}
+            className="cf-turnstile"
+            data-action="turnstile-spin-v2"
+          />
+          <p className="text-sm font-medium text-slate-800">{status}</p>
+          {isConnected && !isCalling && !showConversion && !hasUsedPublicCall && (
+            <p className="mt-1 text-xs text-slate-500">
+              {isDemo
+                ? 'Allow microphone access when prompted — it takes about 10 seconds'
+                : 'Press the call button to start'}
+            </p>
+          )}
+          {callError && <p className="mt-2 text-xs text-red-600">{callError}</p>}
+        </div>
+
+        <div className="mb-4">
+          <button
+            type="button"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            onClick={() => setShowAudioSettings((value) => !value)}
+          >
+            <Mic className="h-3.5 w-3.5" />
+            {showAudioSettings ? 'Hide audio settings' : 'Speaker / mic settings'}
+          </button>
+          {showAudioSettings && (
+            <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+              <AudioSettings onDeviceSelect={handleDeviceSelect} />
+            </div>
+          )}
+        </div>
+
+        {!showConversion && (
+          <div className="flex justify-center">
+            {!isCalling ? (
+              <button
+                type="button"
+                onClick={startCall}
+                disabled={!isConnected || !widgetId || hasUsedPublicCall}
+                className={[
+                  'flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all',
+                  !isConnected || !widgetId || hasUsedPublicCall
+                    ? 'cursor-not-allowed bg-slate-200 text-slate-500'
+                    : 'bg-blue-600 text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.99]',
+                ].join(' ')}
+              >
+                <Phone className="h-4 w-4" />
+                {hasUsedPublicCall
+                  ? 'Call completed'
+                  : isDemo
+                    ? 'Try free demo call'
+                    : 'Start Call'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => finishCall('cancelled')}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-red-600/20 transition-all hover:bg-red-700"
+              >
+                <PhoneOff className="h-4 w-4" />
+                End call
+              </button>
+            )}
+          </div>
+        )}
+
+        {isDemo && showConversion && (
+          <div className="mt-1 space-y-4">
+            <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-4 ring-1 ring-blue-100">
+              <div className="flex items-start gap-2.5">
+                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {callError ? 'Still want your own widget?' : 'That was your site, with AI answering.'}
+                  </p>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
+                    Embed the same click-to-call experience on your site in minutes. Free to
+                    start — no international toll-free numbers required.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                window.location.href = signupHref;
+              }}
+            >
+              <label htmlFor="demo-email" className="sr-only">
+                Work email
+              </label>
+              <input
+                id="demo-email"
+                type="email"
+                required
+                autoComplete="email"
+                placeholder="Work email"
+                value={leadEmail}
+                onChange={(event) => setLeadEmail(event.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <button
+                type="submit"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-600/25 transition-all hover:bg-blue-700"
+              >
+                <Sparkles className="h-4 w-4" />
+                Get my free widget
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </form>
+
+            <div className="flex items-center justify-between gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="font-medium text-slate-500 hover:text-slate-800"
+              >
+                Reload demo
+              </button>
+              <Link to="/pricing" className="font-medium text-blue-600 hover:text-blue-700">
+                See pricing
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {isDemo && !showConversion && !isCalling && !hasTriedCall && (
+          <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-400">
+            After the demo you can create a free account and embed your own widget.
+          </p>
+        )}
+
+        {!isDemo && (
+          <p className="mt-4 text-center text-[11px] text-slate-400">
+            Powered by{' '}
+            <a
+              href="https://click2call.ai"
+              className="font-medium text-blue-600 hover:underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              click2call.ai
+            </a>
           </p>
         )}
       </div>
-
-      {/* Audio Settings */}
-      <div className="mb-6">
-        <p className="text-sm font-medium text-gray-700 mb-2">Audio Settings</p>
-        <button 
-          className="w-full py-2 px-4 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-          onClick={() => setShowAudioSettings(!showAudioSettings)}
-        >
-          Speaker/Mic
-        </button>
-        
-        {showAudioSettings && (
-          <div className="mt-4 border rounded-lg overflow-hidden">
-            <AudioSettings onDeviceSelect={handleDeviceSelect} />
-          </div>
-        )}
-      </div>
-
-      {/* Call Controls */}
-      <div className="flex justify-center">
-        {!isCalling ? (
-          <button
-            onClick={startCall}
-            disabled={!isConnected || !widgetId || hasUsedPublicCall}
-            className={`
-              w-full py-2 px-4 rounded-md text-sm font-medium
-              ${!isConnected || !widgetId || hasUsedPublicCall
-                ? 'bg-gray-300 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-              }
-            `}
-          >
-            {hasUsedPublicCall ? 'Call completed' : 'Start Call'}
-          </button>
-        ) : (
-          <button
-            onClick={endCall}
-            className="w-full py-2 px-4 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700"
-          >
-            End Call
-          </button>
-        )}
-      </div>
-
-      {/* Footer */}
-      <p className="text-xs text-gray-500 text-center mt-4">
-        To get your own Click2Call Widget or Link, please visit{' '}
-        <a href="https://click2call.ai" className="text-blue-600 hover:underline">
-          click2call.ai
-        </a>
-      </p>
     </div>
   );
 };
 
-export default CallWidget
+export default CallWidget;
