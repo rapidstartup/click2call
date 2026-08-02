@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { Phone, Globe, Shield, FileText, Settings, BarChart } from 'lucide-react';
 import CallWidget from '../components/CallWidget';
 
+/** Seeded homepage demo widget (VAPI assistant: Clicko) */
+export const HOMEPAGE_DEMO_WIDGET_ID = '00000000-0000-4000-8000-000000000001';
+
 const Feature = ({ icon: Icon, title, description }: { icon: any, title: string, description: string }) => (
   <div className="p-6 bg-white rounded-lg shadow-md">
     <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
@@ -44,7 +47,7 @@ const LandingPage = () => {
               </div>
             </div>
             <div className="lg:w-1/2 flex justify-center">
-              <CallWidget />
+              <CallWidget widgetId={HOMEPAGE_DEMO_WIDGET_ID} />
             </div>
           </div>
         </div>

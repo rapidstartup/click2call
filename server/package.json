@@ -15,7 +15,7 @@
     "deploy": "npm run build && pm2 delete click2call-server || true && source ../.env && pm2 start ecosystem.config.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.1",
+    "@supabase/supabase-js": "2.45.4",
     "@types/twilio": "^3.19.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",

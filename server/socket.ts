@@ -130,12 +130,19 @@ export function setupSocketServer(httpServer: HttpServer) {
             throw new Error('Widget not found');
           }
 
-          // For VAPI widgets, send VAPI configuration
-          if (widget.type === 'vapi' && widget.settings?.vapi_api_key && widget.settings?.vapi_assistant_id) {
-            socket.emit('vapi-config', {
-              apiKey: widget.settings.vapi_api_key,
-              assistantId: widget.settings.vapi_assistant_id
-            });
+          // For VAPI widgets, send VAPI configuration to the browser.
+          // Prefer public key for client-side Web SDK; fall back to private for legacy rows.
+          if (widget.type === 'vapi' && widget.settings?.vapi_assistant_id) {
+            const clientKey =
+              widget.settings.vapi_public_key ||
+              widget.settings.vapi_api_key;
+
+            if (clientKey) {
+              socket.emit('vapi-config', {
+                apiKey: clientKey,
+                assistantId: widget.settings.vapi_assistant_id
+              });
+            }
           }
 
           // Update stats and create call session
