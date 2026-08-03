@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Input, message, Modal, Space, Spin, Tooltip } from 'antd';
-import { CopyOutlined, DeleteOutlined, SettingOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons';
 
 import { supabase } from '../lib/supabase';
 import { WidgetType } from './WidgetCreator';
@@ -28,6 +28,7 @@ const WidgetList: React.FC = () => {
   const [publicKey, setPublicKey] = useState('');
   const [allowedOrigins, setAllowedOrigins] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [provisioningId, setProvisioningId] = useState<string | null>(null);
 
   const authenticatedFetch = useCallback(async (input: string, init?: RequestInit) => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -72,6 +73,27 @@ const WidgetList: React.FC = () => {
       title: 'Delete Widget',
       content: `Deletion is not available yet. “${widget.name}” was not changed.`,
     });
+  };
+  const handleEnableLeadCapture = async (widget: Widget) => {
+    setProvisioningId(widget.id);
+    try {
+      const response = await authenticatedFetch('/api/vapi-provision', {
+        method: 'POST',
+        body: JSON.stringify({ widget_id: widget.id }),
+      });
+      const payload = await response.json() as { error?: unknown };
+      if (!response.ok) {
+        const errorText = typeof payload.error === 'string'
+          ? payload.error
+          : 'Failed to enable AI lead capture';
+        throw new Error(errorText);
+      }
+      message.success('AI lead capture enabled for ' + widget.name);
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : 'Failed to enable AI lead capture');
+    } finally {
+      setProvisioningId(null);
+    }
   };
 
   const handleSavePublicKey = async () => {
@@ -133,6 +155,11 @@ const WidgetList: React.FC = () => {
                   {widget.needs_allowed_origins && <p className="mt-1 text-xs font-medium text-amber-700">Allowed website required</p>}
                 </div>
                 <Space>
+                  {widget.type === 'vapi' && (
+                    <Tooltip title="Enable AI lead capture">
+                      <Button icon={<RobotOutlined />} loading={provisioningId === widget.id} disabled={provisioningId === widget.id} onClick={() => void handleEnableLeadCapture(widget)} />
+                    </Tooltip>
+                  )}
                   <Tooltip title="Copy embed code"><Button icon={<CopyOutlined />} onClick={() => void handleCopyCode(widget)} /></Tooltip>
                   <Tooltip title="Widget settings"><Button icon={<SettingOutlined />} onClick={() => {
                     setSelectedWidget(widget);

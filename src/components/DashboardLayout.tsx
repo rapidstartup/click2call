@@ -6,6 +6,7 @@ import {
   AppstoreOutlined,
   PhoneOutlined,
   BarChartOutlined,
+  ContactsOutlined,
   LogoutOutlined,
 } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +42,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       key: '/reports',
       icon: <BarChartOutlined />,
       label: 'Reports',
+    },
+    {
+      key: '/leads',
+      icon: <ContactsOutlined />,
+      label: 'Leads',
     },
   ];
 

@@ -9,7 +9,9 @@ import DashboardPage from './pages/DashboardPage.tsx';
 import WidgetManagementPage from './pages/WidgetManagementPage.tsx';
 import CallRoutingPage from './pages/CallRoutingPage.tsx';
 import ReportingPage from './pages/ReportingPage.tsx';
+import BillingPage from './pages/BillingPage.tsx';
 import EmbedWidgetPage from './pages/EmbedWidgetPage.tsx';
+import LeadsPage from './pages/LeadsPage.tsx';
 
 // Protected Route component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -56,6 +58,16 @@ function App() {
           <Route path="/reports" element={
             <ProtectedRoute>
               <ReportingPage />
+            </ProtectedRoute>
+          } />
+          <Route path='/leads' element={
+            <ProtectedRoute>
+              <LeadsPage />
+            </ProtectedRoute>
+          } />
+          <Route path='/billing' element={
+            <ProtectedRoute>
+              <BillingPage />
             </ProtectedRoute>
           } />
         </Routes>

@@ -12,6 +12,8 @@ import { supabase } from './db';
 import { createWidgetCallToken, verifyWidgetCallToken } from './widgetCallToken';
 import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 import { verifyTurnstileToken } from './turnstile';
+import { getMaxDurationSeconds, getVapiWebhookRecipient, startVapiWebCall } from './vapiProxy';
+import type { VapiProxyResponse } from './vapiProxy';
 
 const app = express();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -86,12 +88,6 @@ function canIssueWidgetToken(key: string, now = Date.now()): boolean {
   return true;
 }
 
-interface VapiProxyResponse {
-  body: string;
-  contentType?: string;
-  statusCode: number;
-}
-
 function requestVapiWebCall(apiKey: string, body: Record<string, unknown>): Promise<VapiProxyResponse> {
   return new Promise((resolve, reject) => {
     const request = https.request('https://api.vapi.ai/call/web', {
@@ -137,7 +133,7 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
 
   const { data: widget, error } = await supabase
     .from('widgets')
-    .select('type, settings')
+    .select('id, user_id, type, settings')
     .eq('id', tokenPayload.widgetId)
     .maybeSingle();
   if (error || !widget || widget.type !== 'vapi') {
@@ -153,21 +149,43 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
     return res.status(503).json({ error: 'VAPI server configuration is incomplete' });
   }
 
-  const requestBody: Record<string, unknown> = {
-    assistantId: browserConfig.assistantId,
-  };
-  if (typeof req.body?.roomDeleteOnUserLeaveEnabled === 'boolean') {
-    requestBody.roomDeleteOnUserLeaveEnabled = req.body.roomDeleteOnUserLeaveEnabled;
-  }
+  const maxDurationSeconds = getMaxDurationSeconds(widget.settings);
+  const vapiWebhookRecipient = getVapiWebhookRecipient();
+  const roomDeleteOnUserLeaveEnabled = typeof req.body?.roomDeleteOnUserLeaveEnabled === 'boolean'
+    ? req.body.roomDeleteOnUserLeaveEnabled
+    : undefined;
 
   try {
-    const vapiResponse = await requestVapiWebCall(serverConfig.apiKey, requestBody);
-    if (vapiResponse.statusCode < 200 || vapiResponse.statusCode >= 300) {
+    const result = await startVapiWebCall({
+      apiKey: serverConfig.apiKey,
+      assistantId: browserConfig.assistantId,
+      client: supabase,
+      maxDurationSeconds,
+      roomDeleteOnUserLeaveEnabled,
+      requestVapiWebCall,
+      userId: widget.user_id,
+      vapiWebhookRecipient,
+      widgetId: widget.id,
+    });
+
+    if (result.kind === 'cap-reached') {
+      const appBase = (process.env.PUBLIC_APP_URL?.trim() || process.env.URL?.trim() || 'https://click2call.ai').replace(/\/$/, '');
+      return res.status(402).json({
+        error: 'Monthly call allowance reached',
+        code: 'cap_reached',
+        upgradeUrl: `${appBase}/pricing`,
+      });
+    }
+    if (result.kind === 'metering-error') {
+      return res.status(503).json({ error: 'Call metering is temporarily unavailable' });
+    }
+    if (result.kind === 'provider-error') {
       return res.status(502).json({ error: 'VAPI call initialization failed' });
     }
+
     res.setHeader('Cache-Control', 'no-store');
-    res.setHeader('Content-Type', vapiResponse.contentType || 'application/json');
-    return res.status(vapiResponse.statusCode).send(vapiResponse.body);
+    res.setHeader('Content-Type', result.response.contentType || 'application/json');
+    return res.status(result.response.statusCode).send(result.response.body);
   } catch (proxyError) {
     console.error('VAPI web-call proxy failed:', proxyError instanceof Error ? proxyError.message : 'Unknown error');
     return res.status(502).json({ error: 'VAPI call initialization failed' });

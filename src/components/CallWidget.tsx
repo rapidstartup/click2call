@@ -52,6 +52,50 @@ const getSocketUrl = () => {
 const { url: SOCKET_SERVER_URL, options: defaultOptions } = getSocketUrl();
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY;
 
+function capErrorDetails(error: unknown): { upgradeUrl: string } | null {
+  const textParts: string[] = [];
+  const seen = new Set<object>();
+  let upgradeUrl: string | undefined;
+
+  const visit = (value: unknown, depth: number): void => {
+    if (depth > 4 || value === null || value === undefined) return;
+    if (typeof value === 'string') {
+      textParts.push(value);
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed !== value) visit(parsed, depth + 1);
+      } catch {
+        return;
+      }
+      return;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      textParts.push(String(value));
+      return;
+    }
+    if (typeof value !== 'object' || seen.has(value)) return;
+    seen.add(value);
+
+    const record = value as Record<string, unknown>;
+    if (typeof record.upgradeUrl === 'string' && record.upgradeUrl.trim()) {
+      upgradeUrl = record.upgradeUrl.trim();
+    }
+    if (typeof record.upgrade_url === 'string' && record.upgrade_url.trim()) {
+      upgradeUrl = record.upgrade_url.trim();
+    }
+    if (value instanceof Error) visit(value.message, depth + 1);
+    ['message', 'response', 'responseBody', 'body', 'data', 'status', 'statusCode', 'code', 'upgradeUrl', 'upgrade_url']
+      .forEach((key) => visit(record[key], depth + 1));
+  };
+
+  visit(error, 0);
+  const text = textParts.join(' ').toLowerCase();
+  if (!text.includes('cap_reached') && !text.includes('allowance') && !text.includes('402')) {
+    return null;
+  }
+  return { upgradeUrl: upgradeUrl || '/pricing' };
+}
+
 function getEmbeddingOrigin(): string {
   const ancestorOrigin = window.location.ancestorOrigins?.[0];
   if (ancestorOrigin) return ancestorOrigin;
@@ -86,6 +130,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
   const [showConversion, setShowConversion] = useState(false);
   const [leadEmail, setLeadEmail] = useState('');
   const [callError, setCallError] = useState<string | null>(null);
+  const [upsellUrl, setUpsellUrl] = useState<string | null>(null);
 
   const vapiRef = useRef<Vapi | null>(null);
   const isCallingRef = useRef(false);
@@ -93,6 +138,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
   const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const challengeConsumedRef = useRef(false);
+  const capHandledAttemptRef = useRef(0);
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -327,6 +373,38 @@ const CallWidget: React.FC<CallWidgetProps> = ({
     [mode, onCallEnd, socket, widgetId]
   );
 
+  const handleCapReached = useCallback((error: unknown, attemptId: number): boolean => {
+    const details = capErrorDetails(error);
+    if (!details) return false;
+    if (capHandledAttemptRef.current === attemptId) return true;
+    capHandledAttemptRef.current = attemptId;
+
+    const vapi = vapiRef.current;
+    vapiRef.current = null;
+    if (vapi) {
+      try {
+        vapi.stop();
+      } catch {
+        void 0;
+      }
+    }
+    if (socket?.connected) {
+      socket.emit('signal', {
+        type: 'call-end',
+        timestamp: Date.now(),
+        widgetId,
+      });
+    }
+    setIsCalling(false);
+    setHasTriedCall(true);
+    setCallError(null);
+    setShowConversion(false);
+    setUpsellUrl(details.upgradeUrl);
+    setStatus('Monthly allowance reached');
+    onCallEnd?.('error');
+    return true;
+  }, [onCallEnd, socket, widgetId]);
+
   const startCall = async () => {
     if (!socket || !isConnected || !widgetCallToken || !widgetId || hasUsedPublicCall) return;
     const attemptId = ++callAttemptRef.current;
@@ -335,6 +413,8 @@ const CallWidget: React.FC<CallWidgetProps> = ({
       setHasUsedPublicCall(true);
       setHasTriedCall(true);
       setCallError(null);
+      setUpsellUrl(null);
+      capHandledAttemptRef.current = 0;
       setShowConversion(false);
       setIsCalling(true);
       setStatus('Connecting you…');
@@ -348,12 +428,16 @@ const CallWidget: React.FC<CallWidgetProps> = ({
           const vapi = new Vapi(widgetCallToken, `${SOCKET_SERVER_URL}/vapi-proxy`);
           vapiRef.current = vapi;
           vapi.on('call-end', () => {
-            if (attemptId === callAttemptRef.current) finishCall('completed');
+            if (attemptId === callAttemptRef.current && capHandledAttemptRef.current !== attemptId) {
+              finishCall('completed');
+            }
           });
           vapi.on('error', (error: Error) => {
             console.error('VAPI call error:', error);
             if (attemptId === callAttemptRef.current) {
-              finishCall('error', 'Voice session failed. Check mic permissions and reload to retry.');
+              if (!handleCapReached(error, attemptId)) {
+                finishCall('error', 'Voice session failed. Check mic permissions and reload to retry.');
+              }
             }
           });
 
@@ -364,7 +448,9 @@ const CallWidget: React.FC<CallWidgetProps> = ({
         } catch (error: unknown) {
           console.error('Error initializing VAPI:', error);
           if (attemptId === callAttemptRef.current) {
-            finishCall('error', 'Could not start the AI assistant. Please reload and try again.');
+            if (!handleCapReached(error, attemptId)) {
+              finishCall('error', 'Could not start the AI assistant. Please reload and try again.');
+            }
           }
         }
       });
@@ -456,6 +542,22 @@ const CallWidget: React.FC<CallWidgetProps> = ({
             </p>
           )}
           {callError && <p className="mt-2 text-xs text-red-600">{callError}</p>}
+          {upsellUrl && (
+            <div className='mt-3 rounded-lg bg-blue-50 p-3 text-left ring-1 ring-blue-100'>
+              <p className='text-xs font-semibold text-slate-800'>
+                This site's monthly call allowance is reached.
+              </p>
+              <a
+                href={upsellUrl}
+                target='_blank'
+                rel='noreferrer'
+                className='mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700'
+              >
+                Upgrade to keep calling
+                <ArrowRight className='h-3.5 w-3.5' />
+              </a>
+            </div>
+          )}
         </div>
 
         <div className="mb-4">

@@ -6,6 +6,12 @@
 [functions]
   node_bundler = "esbuild"
 
+[functions."recordings-copier"]
+  schedule = "*/5 * * * *"
+
+[functions."recordings-retention"]
+  schedule = "0 3 * * *"
+
 [dev]
   command = "npm run dev"
   port = 3000
