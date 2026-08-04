@@ -1,8 +1,9 @@
 import React from 'react';
 import { Alert, Button, Card, Skeleton, Tag } from 'antd';
-import { Users } from 'lucide-react';
+import { Download, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
+import { buildCsv, downloadCsv } from '../lib/csv';
 import { supabase } from '../lib/supabase';
 import { formatDateTime, leadOutcomeLabel } from '../lib/format';
 
@@ -39,6 +40,7 @@ const LeadsPage = () => {
   const [leads, setLeads] = React.useState<LeadRow[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [exporting, setExporting] = React.useState(false);
 
   const loadLeads = React.useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,43 @@ const LeadsPage = () => {
       setError(loadError instanceof Error ? loadError.message : 'Unable to load leads');
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const handleExport = React.useCallback(async () => {
+    setExporting(true);
+    setError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Sign in required');
+
+      const { data, error: queryError } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10000);
+      if (queryError) throw new Error(queryError.message);
+
+      const rows = Array.isArray(data) ? data as LeadRow[] : [];
+      const headers = ['name', 'email', 'phone', 'message', 'intent_score', 'outcome', 'source', 'email_delivered_at', 'created_at'];
+      const csv = buildCsv(headers, rows.map((lead) => [
+        lead.name,
+        lead.email,
+        lead.phone,
+        lead.message,
+        lead.intent_score,
+        lead.outcome,
+        lead.source,
+        lead.email_delivered_at,
+        lead.created_at,
+      ]));
+      const stamp = new Date().toISOString().slice(0, 10);
+      downloadCsv(`click2call-leads-${stamp}.csv`, csv);
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : 'Unable to export leads');
+    } finally {
+      setExporting(false);
     }
   }, []);
 
@@ -112,6 +151,16 @@ const LeadsPage = () => {
     <div className='min-h-screen bg-gray-100 py-6'>
       <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
         <h1 className='mb-8 text-2xl font-semibold text-gray-900'>Leads</h1>
+        <div className='mb-6 flex items-center justify-between gap-4'>
+          <p className='text-sm text-gray-500'>{leads.length} leads captured</p>
+          <Button
+            icon={<Download className='h-4 w-4' />}
+            onClick={() => void handleExport()}
+            loading={exporting}
+          >
+            Export CSV
+          </Button>
+        </div>
         <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
           {leads.map((lead) => {
             const tag = outcomeTag(lead.outcome);
