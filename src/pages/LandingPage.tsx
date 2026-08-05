@@ -85,12 +85,12 @@ const FeatureCard = ({
   title: string;
   description: string;
 }) => (
-  <div className="group rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm transition hover:border-blue-200 hover:shadow-md">
-    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+  <div className="group rounded-card border border-border bg-surface p-6 shadow-sm transition hover:border-signal/20 hover:shadow-md">
+    <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-signal/10 text-signal ring-1 ring-signal/15 transition-colors group-hover:bg-signal group-hover:text-white">
       <Icon className="h-5 w-5" />
     </div>
-    <h3 className="text-base font-semibold text-slate-900 mb-2">{title}</h3>
-    <p className="text-sm leading-relaxed text-slate-600">{description}</p>
+    <h3 className="mb-2 text-base font-semibold text-ink">{title}</h3>
+    <p className="text-sm leading-relaxed text-muted">{description}</p>
   </div>
 );
 
@@ -211,7 +211,7 @@ const LandingPage = () => {
                 'Route to AI, SIP, or your mobile app',
               ].map((item) => (
                 <li key={item} className="flex items-start gap-2.5">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-success text-white">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal/10 text-signal ring-1 ring-signal/20">
                     <Check className="h-3 w-3" strokeWidth={3} />
                   </span>
                   {item}

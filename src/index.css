@@ -122,3 +122,61 @@
   border-radius: 0 2px 2px 0;
   background: var(--color-signal);
 }
+
+/* ==========================================================================
+   Widget waveform — DESIGN.md > Motion signature: "the widget waveform
+   responds to live audio." Bars breathe on a staggered loop while the line is
+   connected; the loop quickens while a call is live. Uses the Live color, never
+   signal (signal red is reserved for the answer moment only).
+   ========================================================================== */
+@keyframes c2c-wave {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.c2c-wave-bar {
+  transform-origin: center;
+  animation: c2c-wave 1.6s ease-in-out infinite;
+}
+
+.c2c-wave-bar-active {
+  animation-duration: 0.75s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .c2c-wave-bar,
+  .c2c-wave-bar-active {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   Ring color fix — Tailwind v3 drops opacity modifiers on colors defined as
+   `var(--color-*)`, so `ring-signal/15` was never generated and rings fell
+   back to Tailwind's default blue (`rgb(59 130 246 / .5)`). Define the token
+   ring utilities directly and make the default ring warm so no blue shows.
+   ========================================================================== */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    --tw-ring-color: var(--color-border);
+  }
+}
+
+.ring-signal\/15 {
+  --tw-ring-color: color-mix(in srgb, var(--color-signal) 15%, transparent);
+}
+
+.ring-signal\/20 {
+  --tw-ring-color: color-mix(in srgb, var(--color-signal) 20%, transparent);
+}
+
+.focus\:ring-signal\/20:focus {
+  --tw-ring-color: color-mix(in srgb, var(--color-signal) 20%, transparent);
+}

@@ -519,12 +519,6 @@ const CallWidget: React.FC<CallWidgetProps> = ({
                </p>
             </div>
           </div>
-          {isDemo && (
-                           <span className="inline-flex items-center gap-1 rounded-full bg-success px-2.5 py-1 text-[11px] font-medium text-ink ring-1 ring-success/20">
-                             <span className="h-1.5 w-1.5 rounded-full bg-success" />
-                             Live
-                           </span>
-          )}
         </div>
 
          <div className="mb-5 rounded-widget bg-surface px-4 py-3 text-center ring-1 ring-border">
@@ -534,12 +528,22 @@ const CallWidget: React.FC<CallWidgetProps> = ({
              data-action="turnstile-spin-v2"
            />
            <p className="text-sm font-medium text-ink">{status}</p>
-           {isConnected && !isCalling && !showConversion && !hasUsedPublicCall && (
-             <p className="mt-1 text-xs text-muted">
-               {isDemo
-                 ? 'Allow microphone access when prompted — it takes about 10 seconds'
-                 : 'Press the call button to start'}
-             </p>
+           {isDemo && isConnected && !showConversion && !hasUsedPublicCall && !callError && (
+             <div className="mt-2.5 flex items-center justify-center gap-1.5" aria-hidden="true">
+               {[14, 22, 28, 22, 14].map((height, index) => (
+                 <span
+                   key={index}
+                   className={[
+                     'c2c-wave-bar block w-1 rounded-full bg-live',
+                     isCalling ? 'c2c-wave-bar-active' : '',
+                   ].join(' ')}
+                   style={{ height, animationDelay: `${index * 0.14}s` }}
+                 />
+               ))}
+             </div>
+           )}
+           {!isDemo && isConnected && !isCalling && !showConversion && !hasUsedPublicCall && (
+             <p className="mt-1 text-xs text-muted">Press the call button to start</p>
            )}
            {callError && <p className="mt-2 text-xs text-error">{callError}</p>}
            {upsellUrl && (
@@ -560,15 +564,25 @@ const CallWidget: React.FC<CallWidgetProps> = ({
            )}
          </div>
 
-         <div className="mb-4">
-           <button
-             type="button"
-             className="flex w-full items-center justify-center gap-2 rounded-card border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface"
-             onClick={() => setShowAudioSettings((value) => !value)}
-           >
-             <Mic className="h-3.5 w-3.5" />
-             {showAudioSettings ? 'Hide audio settings' : 'Speaker / mic settings'}
-           </button>
+          <div className="mb-4">
+            <div className="relative group">
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-card border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface"
+                onClick={() => setShowAudioSettings((value) => !value)}
+              >
+                <Mic className="h-3.5 w-3.5" />
+                {showAudioSettings ? 'Hide audio settings' : 'Speaker / mic settings'}
+              </button>
+              {isDemo && (
+                <span
+                  role="tooltip"
+                  className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden w-max max-w-[240px] -translate-x-1/2 rounded-control bg-ink px-2.5 py-1.5 text-center text-[11px] leading-relaxed text-paper opacity-0 shadow-lg transition-opacity duration-short group-hover:opacity-100 sm:block"
+                >
+                  Allow microphone access when prompted — it takes about 10 seconds
+                </span>
+              )}
+            </div>
            {showAudioSettings && (
              <div className="mt-3 overflow-hidden rounded-card border border-border">
                <AudioSettings onDeviceSelect={handleDeviceSelect} />
