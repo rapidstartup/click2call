@@ -4,6 +4,7 @@ import test from 'node:test';
 
 import {
   processStripeWebhook,
+  type StripeWebhookResult,
   type StripeWebhookStore,
   type UserPlanUpsert,
 } from './stripeWebhook';
@@ -98,6 +99,10 @@ function subscriptionObject(status: string = 'active'): Record<string, unknown> 
   };
 }
 
+function assertProcessed(result: StripeWebhookResult): asserts result is Extract<StripeWebhookResult, { kind: 'processed' }> {
+  assert.equal(result.kind, 'processed');
+}
+
 async function process(
   event: Record<string, unknown>,
   store: StripeWebhookStore,
@@ -127,7 +132,7 @@ test('a valid Stripe signature is accepted and checkout completion writes a subs
 
   const result = await process(event, store);
 
-  assert.equal(result.kind, 'processed');
+  assertProcessed(result);
   assert.equal(result.planId, 'starter');
   assert.equal(result.status, 'active');
   assert.equal(store.rows.get('sub_123')?.userId, userId);
@@ -165,7 +170,7 @@ test('customer.subscription.deleted writes canceled and clears the period', asyn
     store,
   );
 
-  assert.equal(result.kind, 'processed');
+  assertProcessed(result);
   assert.equal(result.status, 'canceled');
   assert.equal(store.rows.get('sub_123')?.status, 'canceled');
   assert.equal(store.rows.get('sub_123')?.periodStart, null);
@@ -186,7 +191,7 @@ test('invoice.payment_failed marks the subscription past_due', async () => {
     store,
   );
 
-  assert.equal(result.kind, 'processed');
+  assertProcessed(result);
   assert.equal(result.status, 'past_due');
   assert.equal(store.rows.get('sub_123')?.status, 'past_due');
 });
@@ -215,7 +220,7 @@ test('invoice.paid leaves the existing status when no subscription status is pro
     store,
   );
 
-  assert.equal(result.kind, 'processed');
+  assertProcessed(result);
   assert.equal(result.status, 'unchanged');
   assert.equal(store.rows.get('sub_123')?.status, 'past_due');
 });

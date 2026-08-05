@@ -71,7 +71,7 @@ type StripeConstructor = new (
   options: { apiVersion: '2024-12-18.acacia' },
 ) => StripeClient;
 
-const stripeRequire = createRequire(import.meta.url);
+const stripeRequire = createRequire(__filename);
 
 function loadStripeConstructor(): StripeConstructor {
   const loaded = stripeRequire('stripe') as StripeConstructor | { default?: StripeConstructor };

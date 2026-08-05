@@ -194,7 +194,7 @@ export async function startVapiWebCall(input: StartVapiWebCallInput): Promise<Va
     widgetId: input.widgetId,
   });
 
-  if (!reservation.allowed) {
+  if (reservation.allowed === false) {
     return reservation.capReached ? { kind: 'cap-reached' } : { kind: 'metering-error' };
   }
 

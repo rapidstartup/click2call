@@ -140,7 +140,8 @@ test('reserveCall surfaces cap-reached from the RPC result', async () => {
   });
 
   assert.equal(result.allowed, false);
-  assert.equal(result.capReached, true);
+  const denied = result as Extract<typeof result, { allowed: false }>;
+  assert.equal(denied.capReached, true);
 });
 
 test('maxDurationSeconds reads the widget setting and clamps to the physical bounds', () => {

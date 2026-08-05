@@ -13,7 +13,7 @@ import { createWidgetCallToken, verifyWidgetCallToken } from './widgetCallToken'
 import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 import { verifyTurnstileToken } from './turnstile';
 import { getMaxDurationSeconds, getVapiWebhookRecipient, startVapiWebCall } from './vapiProxy';
-import type { VapiProxyResponse } from './vapiProxy';
+import type { MeteringRpcClient, VapiProxyResponse } from './vapiProxy';
 
 const app = express();
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -117,6 +117,13 @@ function requestVapiWebCall(apiKey: string, body: Record<string, unknown>): Prom
   });
 }
 
+const meteringClient: MeteringRpcClient = {
+  rpc: async (functionName, args) => {
+    const { data, error } = await supabase.rpc(functionName, args);
+    return { data, error };
+  },
+};
+
 // VAPI's documented proxy architecture keeps provider credentials on the
 // server. The browser supplies only its short-lived Click2Call token and the
 // SDK request is reduced to the configured assistant for this widget.
@@ -159,7 +166,7 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
     const result = await startVapiWebCall({
       apiKey: serverConfig.apiKey,
       assistantId: browserConfig.assistantId,
-      client: supabase,
+      client: meteringClient,
       maxDurationSeconds,
       roomDeleteOnUserLeaveEnabled,
       requestVapiWebCall,
