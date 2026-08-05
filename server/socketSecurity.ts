@@ -4,18 +4,21 @@ interface PublicVapiConfig {
 
 export interface ServerVapiConfig extends PublicVapiConfig {
   apiKey: string;
+  publicApiKey?: string;
 }
 
 function readServerVapiConfig(settings: unknown): ServerVapiConfig | null {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null;
   const record = settings as Record<string, unknown>;
   const apiKey = typeof record.vapi_api_key === 'string' ? record.vapi_api_key.trim() : '';
+  const publicApiKey = typeof record.vapi_public_key === 'string' ? record.vapi_public_key.trim() : '';
   const assistantId = typeof record.vapi_assistant_id === 'string' ? record.vapi_assistant_id.trim() : '';
   if (!apiKey || !assistantId) return null;
 
   return {
     assistantId,
     apiKey,
+    publicApiKey: publicApiKey || undefined,
   };
 }
 

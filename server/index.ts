@@ -88,12 +88,12 @@ function canIssueWidgetToken(key: string, now = Date.now()): boolean {
   return true;
 }
 
-function requestVapiWebCall(apiKey: string, body: Record<string, unknown>): Promise<VapiProxyResponse> {
+function requestVapiWebCall(webCallApiKey: string, body: Record<string, unknown>): Promise<VapiProxyResponse> {
   return new Promise((resolve, reject) => {
     const request = https.request('https://api.vapi.ai/call/web', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${webCallApiKey}`,
         'Content-Type': 'application/json',
       },
     }, (response) => {
@@ -152,7 +152,7 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
 
   const serverConfig = toServerVapiConfig(widget.settings);
   const browserConfig = toPublicVapiConfig(widget.settings);
-  if (!serverConfig || !browserConfig) {
+  if (!serverConfig || !browserConfig || !serverConfig.publicApiKey) {
     return res.status(503).json({ error: 'VAPI server configuration is incomplete' });
   }
 
@@ -164,7 +164,7 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
 
   try {
     const result = await startVapiWebCall({
-      apiKey: serverConfig.apiKey,
+      webCallApiKey: serverConfig.publicApiKey,
       assistantId: browserConfig.assistantId,
       client: meteringClient,
       maxDurationSeconds,

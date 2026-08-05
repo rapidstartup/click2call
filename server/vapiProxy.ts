@@ -31,7 +31,7 @@ export type VapiWebCallResult =
   | { kind: 'provider-error' };
 
 export interface StartVapiWebCallInput {
-  apiKey: string;
+  webCallApiKey: string;
   assistantId: string;
   client: MeteringRpcClient;
   maxDurationSeconds: number;
@@ -213,7 +213,7 @@ export async function startVapiWebCall(input: StartVapiWebCallInput): Promise<Va
 
   let vapiResponse: VapiProxyResponse;
   try {
-    vapiResponse = await input.requestVapiWebCall(input.apiKey, requestBody);
+    vapiResponse = await input.requestVapiWebCall(input.webCallApiKey, requestBody);
   } catch {
     await releaseCallReservation(input.client, reservationId);
     return { kind: 'provider-error' };
