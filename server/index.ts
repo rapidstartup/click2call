@@ -12,7 +12,7 @@ import { supabase } from './db';
 import { createWidgetCallToken, verifyWidgetCallToken } from './widgetCallToken';
 import { isOriginAllowed, normalizeOrigin } from './widgetOrigin';
 import { verifyTurnstileToken } from './turnstile';
-import { getMaxDurationSeconds, getVapiWebhookRecipient, startVapiWebCall } from './vapiProxy';
+import { getMaxDurationSeconds, startVapiWebCall } from './vapiProxy';
 import type { MeteringRpcClient, VapiProxyResponse } from './vapiProxy';
 
 const app = express();
@@ -157,7 +157,6 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
   }
 
   const maxDurationSeconds = getMaxDurationSeconds(widget.settings);
-  const vapiWebhookRecipient = getVapiWebhookRecipient();
   const roomDeleteOnUserLeaveEnabled = typeof req.body?.roomDeleteOnUserLeaveEnabled === 'boolean'
     ? req.body.roomDeleteOnUserLeaveEnabled
     : undefined;
@@ -171,7 +170,6 @@ app.post('/vapi-proxy/call/web', async (req, res) => {
       roomDeleteOnUserLeaveEnabled,
       requestVapiWebCall,
       userId: widget.user_id,
-      vapiWebhookRecipient,
       widgetId: widget.id,
     });
 

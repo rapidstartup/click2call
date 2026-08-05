@@ -37,7 +37,6 @@ export interface StartVapiWebCallInput {
   maxDurationSeconds: number;
   requestVapiWebCall: (apiKey: string, body: Record<string, unknown>) => Promise<VapiProxyResponse>;
   userId: string | null;
-  vapiWebhookRecipient: string;
   widgetId: string;
   roomDeleteOnUserLeaveEnabled?: boolean;
   reservationId?: string;
@@ -203,12 +202,10 @@ export async function startVapiWebCall(input: StartVapiWebCallInput): Promise<Va
 
   const requestBody: Record<string, unknown> = {
     assistantId: input.assistantId,
-    webhookRecipient: input.vapiWebhookRecipient,
     metadata: {
       user_id: input.userId,
       widget_id: input.widgetId,
     },
-    maxDurationSeconds: input.maxDurationSeconds,
   };
   if (typeof input.roomDeleteOnUserLeaveEnabled === 'boolean') {
     requestBody.roomDeleteOnUserLeaveEnabled = input.roomDeleteOnUserLeaveEnabled;

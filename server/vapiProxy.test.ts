@@ -35,7 +35,6 @@ function baseInput(client: ReturnType<typeof createRpc>, requestVapiWebCall: (ap
     maxDurationSeconds: 1800,
     requestVapiWebCall,
     userId,
-    vapiWebhookRecipient: 'https://click2call.ai/api/vapi-webhook',
     widgetId,
   };
 }
@@ -80,7 +79,7 @@ test('atomic cap reservation: concurrent double-start allows exactly one call', 
   assert.equal(activeReservations, 0);
 });
 
-test('the Vapi request carries webhook recipient, owner metadata, and duration bound', async () => {
+test('the Vapi request carries owner metadata and no web-call-invalid fields', async () => {
   const client = createRpc(async (fn) => {
     if (fn === 'reserve_call') return { data: [{ allowed: true, error_code: null }], error: null };
     if (fn === 'finalize_call_reservation') return { data: { id: 'call-1' }, error: null };
@@ -96,9 +95,9 @@ test('the Vapi request carries webhook recipient, owner metadata, and duration b
 
   const result = await startVapiWebCall(baseInput(client, vapi));
   assert.equal(result.kind, 'started');
-  assert.equal(captured?.webhookRecipient, 'https://click2call.ai/api/vapi-webhook');
-  assert.equal(captured?.maxDurationSeconds, 1800);
   assert.deepEqual(captured?.metadata, { user_id: userId, widget_id: widgetId });
+  assert.equal('webhookRecipient' in (captured || {}), false);
+  assert.equal('maxDurationSeconds' in (captured || {}), false);
   const finalize = client.calls.find((entry) => entry.fn === 'finalize_call_reservation');
   assert.equal(finalize?.args.p_vapi_call_id, 'vapi-call-1');
 });
