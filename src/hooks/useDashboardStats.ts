@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { supabase } from '../lib/supabase';
+import { authenticatedFetchJson } from '../lib/fetchJson';
 
 export interface RecentCall {
   id: string;
@@ -58,11 +59,6 @@ function numberValue(value: unknown): number {
   return 0;
 }
 
-function errorValue(value: unknown, fallback: string): string {
-  const record = asRecord(value);
-  return stringValue(record?.error) || fallback;
-}
-
 function parseRecentCall(value: unknown, index: number): RecentCall {
   const record = asRecord(value);
   return {
@@ -108,20 +104,8 @@ function parseDashboardStats(value: unknown): DashboardStats {
 }
 
 async function loadBillingDetails(): Promise<BillingDetails> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Sign in required');
-
-  const response = await fetch('/api/billing', {
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  });
-  const payload = await response.json() as unknown;
+  const payload = await authenticatedFetchJson('/api/billing');
   const payloadRecord = asRecord(payload);
-  if (!response.ok) {
-    throw new Error(errorValue(payload, 'Unable to load billing summary'));
-  }
 
   const plan = asRecord(payloadRecord?.plan);
   return {

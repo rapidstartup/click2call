@@ -107,7 +107,7 @@ const LeadsPage = () => {
 
   if (loading) {
     return (
-      <div className='min-h-screen bg-gray-100 py-6'>
+      <div className='py-6'>
         <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
           <Skeleton active paragraph={{ rows: 5 }} />
           <Skeleton active paragraph={{ rows: 5 }} />
@@ -118,7 +118,7 @@ const LeadsPage = () => {
 
   if (error) {
     return (
-      <div className='min-h-screen bg-gray-100 py-6'>
+      <div className='py-6'>
         <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
           <Alert
             type='error'
@@ -134,7 +134,7 @@ const LeadsPage = () => {
 
   if (leads.length === 0) {
     return (
-      <div className='min-h-screen bg-gray-100 py-6'>
+      <div className='py-6'>
         <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
           <div className='flex flex-col items-center justify-center rounded-lg bg-gray-50 px-6 py-16 text-center'>
             <Users className='mb-4 h-10 w-10 text-gray-400' />
@@ -148,7 +148,7 @@ const LeadsPage = () => {
   }
 
   return (
-    <div className='min-h-screen bg-gray-100 py-6'>
+    <div className='py-6'>
       <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
         <h1 className='mb-8 text-2xl font-semibold text-gray-900'>Leads</h1>
         <div className='mb-6 flex items-center justify-between gap-4'>

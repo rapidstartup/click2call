@@ -488,209 +488,209 @@ const CallWidget: React.FC<CallWidgetProps> = ({
   const isDemo = mode === 'demo';
 
   return (
-    <div
-      className={[
-        'w-full max-w-[360px] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xl shadow-slate-900/5',
-        className,
-      ].join(' ')}
-    >
-      <div className="h-1.5 bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400" />
+     <div
+       className={[
+         'w-full max-w-[360px] overflow-hidden rounded-widget border border-border bg-paper shadow-xl',
+         className,
+       ].join(' ')}
+     >
+       <div className="h-1.5 bg-signal" />
       <div className="p-6">
         <div className="mb-5 flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div
-              className={[
-                'flex h-11 w-11 items-center justify-center rounded-full',
-                isCalling
-                  ? 'animate-pulse bg-emerald-500'
-                  : isConnected
-                    ? 'bg-blue-600'
-                    : 'bg-slate-300',
-              ].join(' ')}
-            >
+             <div
+               className={[
+                 'flex h-11 w-11 items-center justify-center rounded-full',
+                 isCalling
+                   ? 'animate-pulse bg-success'
+                   : isConnected
+                     ? 'bg-signal'
+                     : 'bg-border',
+               ].join(' ')}
+             >
               <Phone className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold leading-tight text-slate-900">
-                {isDemo ? 'Live demo' : 'Click2Call'}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {isDemo ? 'Talk to Clicko, our AI host' : 'Web calling widget'}
-              </p>
+               <h2 className="text-lg font-semibold leading-tight text-ink">
+                 {isDemo ? 'Live demo' : 'Click2Call'}
+               </h2>
+               <p className="mt-0.5 text-xs text-muted">
+                 {isDemo ? 'Talk to Clicko, our AI host' : 'Web calling widget'}
+               </p>
             </div>
           </div>
           {isDemo && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 ring-1 ring-emerald-100">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Live
-            </span>
+                           <span className="inline-flex items-center gap-1 rounded-full bg-success px-2.5 py-1 text-[11px] font-medium text-ink ring-1 ring-success/20">
+                             <span className="h-1.5 w-1.5 rounded-full bg-success" />
+                             Live
+                           </span>
           )}
         </div>
 
-        <div className="mb-5 rounded-xl bg-slate-50 px-4 py-3 text-center ring-1 ring-slate-100">
-          <div
-            ref={turnstileContainerRef}
-            className="cf-turnstile"
-            data-action="turnstile-spin-v2"
-          />
-          <p className="text-sm font-medium text-slate-800">{status}</p>
-          {isConnected && !isCalling && !showConversion && !hasUsedPublicCall && (
-            <p className="mt-1 text-xs text-slate-500">
-              {isDemo
-                ? 'Allow microphone access when prompted — it takes about 10 seconds'
-                : 'Press the call button to start'}
-            </p>
-          )}
-          {callError && <p className="mt-2 text-xs text-red-600">{callError}</p>}
-          {upsellUrl && (
-            <div className='mt-3 rounded-lg bg-blue-50 p-3 text-left ring-1 ring-blue-100'>
-              <p className='text-xs font-semibold text-slate-800'>
-                This site's monthly call allowance is reached.
-              </p>
-              <a
-                href={upsellUrl}
-                target='_blank'
-                rel='noreferrer'
-                className='mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700'
-              >
-                Upgrade to keep calling
-                <ArrowRight className='h-3.5 w-3.5' />
-              </a>
-            </div>
-          )}
-        </div>
+         <div className="mb-5 rounded-widget bg-surface px-4 py-3 text-center ring-1 ring-border">
+           <div
+             ref={turnstileContainerRef}
+             className="cf-turnstile"
+             data-action="turnstile-spin-v2"
+           />
+           <p className="text-sm font-medium text-ink">{status}</p>
+           {isConnected && !isCalling && !showConversion && !hasUsedPublicCall && (
+             <p className="mt-1 text-xs text-muted">
+               {isDemo
+                 ? 'Allow microphone access when prompted — it takes about 10 seconds'
+                 : 'Press the call button to start'}
+             </p>
+           )}
+           {callError && <p className="mt-2 text-xs text-error">{callError}</p>}
+           {upsellUrl && (
+             <div className='mt-3 rounded-card bg-surface p-3 text-left ring-1 ring-border'>
+               <p className='text-xs font-semibold text-ink'>
+                 This site's monthly call allowance is reached.
+               </p>
+               <a
+                 href={upsellUrl}
+                 target='_blank'
+                 rel='noreferrer'
+                 className='mt-2 inline-flex items-center gap-1 text-xs font-semibold text-signal hover:text-signal/80'
+               >
+                 Upgrade to keep calling
+                 <ArrowRight className='h-3.5 w-3.5' />
+               </a>
+             </div>
+           )}
+         </div>
 
-        <div className="mb-4">
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
-            onClick={() => setShowAudioSettings((value) => !value)}
-          >
-            <Mic className="h-3.5 w-3.5" />
-            {showAudioSettings ? 'Hide audio settings' : 'Speaker / mic settings'}
-          </button>
-          {showAudioSettings && (
-            <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-              <AudioSettings onDeviceSelect={handleDeviceSelect} />
-            </div>
-          )}
-        </div>
+         <div className="mb-4">
+           <button
+             type="button"
+             className="flex w-full items-center justify-center gap-2 rounded-card border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-surface"
+             onClick={() => setShowAudioSettings((value) => !value)}
+           >
+             <Mic className="h-3.5 w-3.5" />
+             {showAudioSettings ? 'Hide audio settings' : 'Speaker / mic settings'}
+           </button>
+           {showAudioSettings && (
+             <div className="mt-3 overflow-hidden rounded-card border border-border">
+               <AudioSettings onDeviceSelect={handleDeviceSelect} />
+             </div>
+           )}
+         </div>
 
-        {!showConversion && (
-          <div className="flex justify-center">
-            {!isCalling ? (
-              <button
-                type="button"
-                onClick={startCall}
-                disabled={!isConnected || !widgetId || hasUsedPublicCall}
-                className={[
-                  'flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all',
-                  !isConnected || !widgetId || hasUsedPublicCall
-                    ? 'cursor-not-allowed bg-slate-200 text-slate-500'
-                    : 'bg-blue-600 text-white shadow-md shadow-blue-600/25 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/30 active:scale-[0.99]',
-                ].join(' ')}
-              >
-                <Phone className="h-4 w-4" />
-                {hasUsedPublicCall
-                  ? 'Call completed'
-                  : isDemo
-                    ? 'Try free demo call'
-                    : 'Start Call'}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => finishCall('cancelled')}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-red-600/20 transition-all hover:bg-red-700"
-              >
-                <PhoneOff className="h-4 w-4" />
-                End call
-              </button>
-            )}
-          </div>
-        )}
+         {!showConversion && (
+           <div className="flex justify-center">
+             {!isCalling ? (
+               <button
+                 type="button"
+                 onClick={startCall}
+                 disabled={!isConnected || !widgetId || hasUsedPublicCall}
+                 className={[
+                   'flex w-full items-center justify-center gap-2 rounded-widget px-4 py-3 text-sm font-semibold transition-all',
+                   !isConnected || !widgetId || hasUsedPublicCall
+                     ? 'cursor-not-allowed bg-border text-muted'
+                     : 'bg-signal text-paper shadow-md shadow-signal/25 hover:bg-signal/90 hover:shadow-lg hover:shadow-signal/30 active:scale-[0.99]',
+                 ].join(' ')}
+               >
+                 <Phone className="h-4 w-4" />
+                 {hasUsedPublicCall
+                   ? 'Call completed'
+                   : isDemo
+                     ? 'Try free demo call'
+                     : 'Start Call'}
+               </button>
+             ) : (
+               <button
+                 type="button"
+                 onClick={() => finishCall('cancelled')}
+                 className="flex w-full items-center justify-center gap-2 rounded-widget bg-error px-4 py-3 text-sm font-semibold text-paper shadow-md shadow-error/20 transition-all hover:bg-error/90"
+               >
+                 <PhoneOff className="h-4 w-4" />
+                 End call
+               </button>
+             )}
+           </div>
+         )}
 
-        {isDemo && showConversion && (
-          <div className="mt-1 space-y-4">
-            <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-4 ring-1 ring-blue-100">
-              <div className="flex items-start gap-2.5">
-                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {callError ? 'Still want your own widget?' : 'That was your site, with AI answering.'}
-                  </p>
-                  <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                    Embed the same click-to-call experience on your site in minutes. Free to
-                    start — no international toll-free numbers required.
-                  </p>
-                </div>
-              </div>
-            </div>
+         {isDemo && showConversion && (
+           <div className="mt-1 space-y-4">
+             <div className="rounded-widget bg-surface p-4 ring-1 ring-border">
+               <div className="flex items-start gap-2.5">
+                 <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-signal" />
+                 <div>
+                   <p className="text-sm font-semibold text-ink">
+                     {callError ? 'Still want your own widget?' : 'That was your site, with AI answering.'}
+                   </p>
+                   <p className="mt-1 text-xs leading-relaxed text-muted">
+                     Embed the same click-to-call experience on your site in minutes. Free to
+                     start — no international toll-free numbers required.
+                   </p>
+                 </div>
+               </div>
+             </div>
 
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                window.location.href = signupHref;
-              }}
-            >
-              <label htmlFor="demo-email" className="sr-only">
-                Work email
-              </label>
-              <input
-                id="demo-email"
-                type="email"
-                required
-                autoComplete="email"
-                placeholder="Work email"
-                value={leadEmail}
-                onChange={(event) => setLeadEmail(event.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-blue-600/25 transition-all hover:bg-blue-700"
-              >
-                <Sparkles className="h-4 w-4" />
-                Get my free widget
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </form>
+             <form
+               className="space-y-3"
+               onSubmit={(event) => {
+                 event.preventDefault();
+                 window.location.href = signupHref;
+               }}
+             >
+               <label htmlFor="demo-email" className="sr-only">
+                 Work email
+               </label>
+               <input
+                 id="demo-email"
+                 type="email"
+                 required
+                 autoComplete="email"
+                 placeholder="Work email"
+                 value={leadEmail}
+                 onChange={(event) => setLeadEmail(event.target.value)}
+                 className="w-full rounded-widget border border-border px-3.5 py-2.5 text-sm text-ink placeholder:text-muted focus:border-signal focus:outline-none focus:ring-2 focus:ring-signal/20"
+               />
+               <button
+                 type="submit"
+                 className="flex w-full items-center justify-center gap-2 rounded-widget bg-signal px-4 py-3 text-sm font-semibold text-paper shadow-md shadow-signal/25 transition-all hover:bg-signal/90"
+               >
+                 <Sparkles className="h-4 w-4" />
+                 Get my free widget
+                 <ArrowRight className="h-4 w-4" />
+               </button>
+             </form>
 
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => window.location.reload()}
-                className="font-medium text-slate-500 hover:text-slate-800"
-              >
-                Reload demo
-              </button>
-              <Link to="/pricing" className="font-medium text-blue-600 hover:text-blue-700">
-                See pricing
-              </Link>
-            </div>
-          </div>
-        )}
+             <div className="flex items-center justify-between gap-2 text-xs">
+               <button
+                 type="button"
+                 onClick={() => window.location.reload()}
+                 className="font-medium text-muted hover:text-ink"
+               >
+                 Reload demo
+               </button>
+               <Link to="/pricing" className="font-medium text-signal hover:text-signal/80">
+                 See pricing
+               </Link>
+             </div>
+           </div>
+         )}
 
-        {isDemo && !showConversion && !isCalling && !hasTriedCall && (
-          <p className="mt-4 text-center text-[11px] leading-relaxed text-slate-400">
-            After the demo you can create a free account and embed your own widget.
-          </p>
-        )}
+         {isDemo && !showConversion && !isCalling && !hasTriedCall && (
+           <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
+             After the demo you can create a free account and embed your own widget.
+           </p>
+         )}
 
-        {!isDemo && (
-          <p className="mt-4 text-center text-[11px] text-slate-400">
-            Powered by{' '}
-            <a
-              href="https://click2call.ai"
-              className="font-medium text-blue-600 hover:underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              click2call.ai
-            </a>
-          </p>
-        )}
+         {!isDemo && (
+           <p className="mt-4 text-center text-[11px] text-muted">
+             Powered by{' '}
+             <a
+               href="https://click2call.ai"
+               className="font-medium text-signal hover:underline"
+               target="_blank"
+               rel="noreferrer"
+             >
+               click2call.ai
+             </a>
+           </p>
+         )}
       </div>
     </div>
   );

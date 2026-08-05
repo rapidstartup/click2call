@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, CreditCard, Gauge, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-import { supabase } from '../lib/supabase';
+import { authenticatedFetchJson } from '../lib/fetchJson';
 
 interface BillingSummary {
   allowance_seconds: number;
@@ -56,19 +56,6 @@ const BillingPage = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const authenticatedFetch = useCallback(async (input: string, init?: RequestInit) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('Sign in required');
-    return fetch(input, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-        ...init?.headers,
-      },
-    });
-  }, []);
-
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     if (!query.has('session_id')) return;
@@ -80,9 +67,8 @@ const BillingPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await authenticatedFetch('/api/billing');
-      const payload = await response.json() as BillingResponse;
-      if (!response.ok || !payload.plan || typeof payload.allowance_seconds !== 'number') {
+      const payload = await authenticatedFetchJson<BillingResponse>('/api/billing');
+      if (!payload.plan || typeof payload.allowance_seconds !== 'number') {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'Unable to load billing');
       }
       setBilling(payload as BillingSummary);
@@ -91,7 +77,7 @@ const BillingPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [authenticatedFetch]);
+  }, []);
 
   useEffect(() => {
     void loadBilling();
@@ -101,9 +87,8 @@ const BillingPage = () => {
     setIsManaging(true);
     setError(null);
     try {
-      const response = await authenticatedFetch('/api/billing', { method: 'POST' });
-      const payload = await response.json() as PortalResponse;
-      if (!response.ok || typeof payload.url !== 'string') {
+      const payload = await authenticatedFetchJson<PortalResponse>('/api/billing', { method: 'POST' });
+      if (typeof payload.url !== 'string') {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'Unable to open billing portal');
       }
       window.location.href = payload.url;
@@ -115,7 +100,7 @@ const BillingPage = () => {
 
   if (isLoading) {
     return (
-      <div className='min-h-screen bg-gray-100 py-6'>
+      <div className='py-6'>
         <div className='flex items-center justify-center gap-2 text-gray-600'>
           <Loader2 className='h-5 w-5 animate-spin' />
           Loading billing...
@@ -126,7 +111,7 @@ const BillingPage = () => {
 
   if (error && !billing) {
     return (
-      <div className='min-h-screen bg-gray-100 py-6'>
+      <div className='py-6'>
         <div className='mx-auto max-w-4xl px-4 sm:px-6 lg:px-8'>
           <div className='flex items-center gap-2 rounded-lg bg-red-50 p-4 text-sm text-red-700'>
             <AlertCircle className='h-5 w-5 shrink-0' />
@@ -148,14 +133,14 @@ const BillingPage = () => {
     && billing.used_seconds >= billing.allowance_seconds;
 
   return (
-    <div className='min-h-screen bg-gray-100 py-6'>
+    <div className='py-6'>
       <div className='mx-auto max-w-4xl px-4 sm:px-6 lg:px-8'>
-        <div className='mb-8 flex items-center justify-between'>
-          <h1 className='text-2xl font-semibold text-gray-900'>Billing</h1>
-          <Link to='/dashboard' className='text-sm font-medium text-blue-600 hover:text-blue-700'>
-            Dashboard
-          </Link>
-        </div>
+       <div className='mb-8 flex items-center justify-between'>
+           <h1 className='text-2xl font-semibold text-ink'>Billing</h1>
+           <Link to='/dashboard' className='text-sm font-medium text-signal hover:text-signal/80'>
+             Dashboard
+           </Link>
+         </div>
 
         {showSuccess && (
           <div className='mb-6 rounded-lg bg-green-50 p-4 text-sm font-medium text-green-700'>

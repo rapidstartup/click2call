@@ -16,7 +16,7 @@ const corsHeaders = {
 
 interface WidgetRow {
   created_at: string;
-  destination: string;
+  destination: string | null;
   id: string;
   name: string;
   routing: unknown;

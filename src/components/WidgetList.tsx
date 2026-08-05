@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Input, message, Modal, Space, Spin, Tooltip } from 'antd';
 import { CopyOutlined, DeleteOutlined, RobotOutlined, SettingOutlined } from '@ant-design/icons';
 
-import { supabase } from '../lib/supabase';
+import { authenticatedFetchJson } from '../lib/fetchJson';
+import { embedCode } from '../lib/format';
 import { WidgetType } from './WidgetCreator';
 
 interface Widget {
@@ -16,11 +17,6 @@ interface Widget {
   type: WidgetType;
 }
 
-function embedCode(widgetId: string): string {
-  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
-  return `<script src="https://click2call.ai/widget.js" data-widget-id="${widgetId}" data-turnstile-site-key="${siteKey}" async></script>`;
-}
-
 const WidgetList: React.FC = () => {
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,26 +26,12 @@ const WidgetList: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [provisioningId, setProvisioningId] = useState<string | null>(null);
 
-  const authenticatedFetch = useCallback(async (input: string, init?: RequestInit) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error('Sign in required');
-    return fetch(input, {
-      ...init,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-        ...init?.headers,
-      },
-    });
-  }, []);
-
   const loadWidgets = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await authenticatedFetch('/api/widgets');
-      const payload = await response.json() as Widget[] | { error?: string };
-      if (!response.ok || !Array.isArray(payload)) {
-        throw new Error(!Array.isArray(payload) && payload.error ? payload.error : 'Failed to load widgets');
+      const payload = await authenticatedFetchJson<Widget[]>('/api/widgets');
+      if (!Array.isArray(payload)) {
+        throw new Error('Failed to load widgets');
       }
       setWidgets(payload);
     } catch (error) {
@@ -57,7 +39,7 @@ const WidgetList: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [authenticatedFetch]);
+  }, []);
 
   useEffect(() => {
     void loadWidgets();
@@ -77,17 +59,10 @@ const WidgetList: React.FC = () => {
   const handleEnableLeadCapture = async (widget: Widget) => {
     setProvisioningId(widget.id);
     try {
-      const response = await authenticatedFetch('/api/vapi-provision', {
+      await authenticatedFetchJson('/api/vapi-provision', {
         method: 'POST',
         body: JSON.stringify({ widget_id: widget.id }),
       });
-      const payload = await response.json() as { error?: unknown };
-      if (!response.ok) {
-        const errorText = typeof payload.error === 'string'
-          ? payload.error
-          : 'Failed to enable AI lead capture';
-        throw new Error(errorText);
-      }
       message.success('AI lead capture enabled for ' + widget.name);
     } catch (error) {
       message.error(error instanceof Error ? error.message : 'Failed to enable AI lead capture');
@@ -100,7 +75,7 @@ const WidgetList: React.FC = () => {
     if (!selectedWidget || (!publicKey.trim() && !allowedOrigins.trim())) return;
     setIsSaving(true);
     try {
-      const response = await authenticatedFetch('/api/widgets', {
+      await authenticatedFetchJson('/api/widgets', {
         method: 'PATCH',
         body: JSON.stringify({
           widget_id: selectedWidget.id,
@@ -110,8 +85,6 @@ const WidgetList: React.FC = () => {
           } : {}),
         }),
       });
-      const payload = await response.json() as Widget | { error?: string };
-      if (!response.ok) throw new Error('error' in payload && payload.error ? payload.error : 'Failed to update widget');
       message.success('VAPI security settings saved');
       setSelectedWidget(null);
       setPublicKey('');
@@ -141,7 +114,7 @@ const WidgetList: React.FC = () => {
       )}
 
       {widgets.length === 0 ? (
-        <div className="rounded-lg bg-gray-50 p-8 text-center"><p className="text-gray-500">No widgets created yet</p></div>
+          <div className="rounded-card bg-surface p-8 text-center"><p className="text-muted">No widgets created yet</p></div>
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {widgets.map((widget) => (
@@ -149,10 +122,10 @@ const WidgetList: React.FC = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="text-lg font-medium">{widget.name}</h3>
-                  <p className="text-sm capitalize text-gray-500">{widget.type}</p>
-                  <p className="text-sm text-gray-500">{widget.destination}</p>
-                  {widget.needs_vapi_public_key && <p className="mt-2 text-xs font-medium text-amber-700">Public key required</p>}
-                  {widget.needs_allowed_origins && <p className="mt-1 text-xs font-medium text-amber-700">Allowed website required</p>}
+                  <p className="text-sm capitalize text-muted">{widget.type}</p>
+                  <p className="text-sm text-muted">{widget.destination}</p>
+                  {widget.needs_vapi_public_key && <p className="mt-2 text-xs font-medium text-warning">Public key required</p>}
+                  {widget.needs_allowed_origins && <p className="mt-1 text-xs font-medium text-warning">Allowed website required</p>}
                 </div>
                 <Space>
                   {widget.type === 'vapi' && (

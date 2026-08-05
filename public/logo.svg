@@ -1,0 +1,16 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="click2call">
+  <title>click2call</title>
+  <!--
+    "The Exchange" mark — a modern telephone exchange, not a telemetry feed.
+    Geometric handset (two rounded nodes + a connecting line) in ink, with a
+    single signal-red dot marking the live connection. No gradients, no
+    blobs, per DESIGN.md's anti-slop list. Static light-mode colors are
+    hardcoded here (an externally-loaded <img>/SVG cannot inherit currentColor
+    or CSS custom properties from the host page); the theme-aware version used
+    inside the app is the inline <svg> in src/components/DashboardLayout.tsx.
+  -->
+  <path d="M13 13C16.5 7 25 15.5 19 19" stroke="#1e2421" stroke-width="4.5" stroke-linecap="round" fill="none" />
+  <circle cx="9" cy="9" r="6" fill="#1e2421" />
+  <circle cx="23" cy="23" r="6" fill="#1e2421" />
+  <circle cx="13.5" cy="4.5" r="3" fill="#e24d2e" />
+</svg>

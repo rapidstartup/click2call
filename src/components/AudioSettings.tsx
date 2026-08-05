@@ -251,24 +251,24 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
 
   return (
     <div className="space-y-4 p-4">
-      {error && (
-        <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4">
-          {error}
-        </div>
-      )}
+       {error && (
+         <div className="bg-error/10 text-error p-3 rounded-control text-sm mb-4">
+           {error}
+         </div>
+       )}
       
       {/* Device Selection */}
       <div className="space-y-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <Mic className="inline-block w-4 h-4 mr-1" />
-            Microphone
-          </label>
-          <select
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            value={selectedInput}
-            onChange={(e) => handleInputChange(e.target.value)}
-          >
+         <label className="block text-sm font-medium text-ink mb-1">
+             <Mic className="inline-block w-4 h-4 mr-1" />
+             Microphone
+           </label>
+           <select
+             className="w-full rounded-control border-border shadow-sm focus:border-signal focus:ring-signal"
+             value={selectedInput}
+             onChange={(e) => handleInputChange(e.target.value)}
+           >
             {inputDevices.map(device => (
               <option key={device.deviceId} value={device.deviceId}>
                 {device.label}
@@ -278,15 +278,15 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <Volume2 className="inline-block w-4 h-4 mr-1" />
-            Speaker
-          </label>
-          <select
-            className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            value={selectedOutput}
-            onChange={(e) => handleOutputChange(e.target.value)}
-          >
+         <label className="block text-sm font-medium text-ink mb-1">
+             <Volume2 className="inline-block w-4 h-4 mr-1" />
+             Speaker
+           </label>
+           <select
+             className="w-full rounded-control border-border shadow-sm focus:border-signal focus:ring-signal"
+             value={selectedOutput}
+             onChange={(e) => handleOutputChange(e.target.value)}
+           >
             {outputDevices.map(device => (
               <option key={device.deviceId} value={device.deviceId}>
                 {device.label}
@@ -298,38 +298,38 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
 
       {/* Testing Controls */}
       <div className="flex space-x-4 mt-4">
-        <button
-          onClick={isTestingMic ? stopMicTest : startMicTest}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium ${
-            isTestingMic
-              ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {isTestingMic ? 'Stop Mic Test' : 'Test Mic'}
-        </button>
-        
-        <button
-          onClick={testSpeaker}
-          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium ${
-            isTestingSpeaker
-              ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {isTestingSpeaker ? 'Stop Sound' : 'Test Speaker'}
-        </button>
+         <button
+           onClick={isTestingMic ? stopMicTest : startMicTest}
+           className={`flex-1 py-2 px-4 rounded-control text-sm font-medium ${
+             isTestingMic
+               ? 'bg-error text-paper hover:bg-error/90'
+               : 'bg-signal text-paper hover:bg-signal/90'
+           }`}
+         >
+           {isTestingMic ? 'Stop Mic Test' : 'Test Mic'}
+         </button>
+         
+         <button
+           onClick={testSpeaker}
+           className={`flex-1 py-2 px-4 rounded-control text-sm font-medium ${
+             isTestingSpeaker
+               ? 'bg-error text-paper hover:bg-error/90'
+               : 'bg-signal text-paper hover:bg-signal/90'
+           }`}
+         >
+           {isTestingSpeaker ? 'Stop Sound' : 'Test Speaker'}
+         </button>
 
-        <button
-          onClick={enumerateDevices}
-          disabled={isRefreshing}
-          className={`p-2 rounded-md ${
-            isRefreshing 
-              ? 'text-gray-400 bg-gray-100'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          }`}
-          title="Refresh devices"
-        >
+         <button
+           onClick={enumerateDevices}
+           disabled={isRefreshing}
+           className={`p-2 rounded-control ${
+             isRefreshing 
+               ? 'text-muted bg-surface'
+               : 'text-muted hover:text-ink hover:bg-surface'
+           }`}
+           title="Refresh devices"
+         >
           <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -337,15 +337,15 @@ export const AudioSettings: React.FC<AudioSettingsProps> = ({ onDeviceSelect }) 
       {/* Volume Meter */}
       {isTestingMic && (
         <div className="mt-4">
-          <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-green-500 transition-all duration-75"
-              style={{ 
-                width: `${Math.max(0, Math.min(100, micVolume * 100))}%`,
-                transition: 'width 100ms linear'
-              }}
-            />
-          </div>
+           <div className="h-3 bg-border rounded-full overflow-hidden">
+             <div
+               className="h-full bg-success transition-all duration-75"
+               style={{ 
+                 width: `${Math.max(0, Math.min(100, micVolume * 100))}%`,
+                 transition: 'width 100ms linear'
+               }}
+             />
+           </div>
         </div>
       )}
     </div>

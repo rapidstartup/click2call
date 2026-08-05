@@ -4,7 +4,7 @@ create table widgets (
   user_id uuid references auth.users(id) on delete cascade,
   name text not null,
   type text not null check (type in ('call2app', 'siptrunk', 'aibot', 'email', 'vapi')),
-  destination text not null,
+  destination text,
   routing jsonb not null default '{}',
   settings jsonb not null default '{}',
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,

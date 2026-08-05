@@ -1,3 +1,124 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ==========================================================================
+   Design tokens — "The Exchange" (see DESIGN.md, docs/design-tokens.md)
+   ========================================================================== */
+
+:root {
+  /* Signal — the answer moment ONLY. Never decorative, never success. */
+  --color-signal: #e24d2e;
+  --color-signal-hover: #c83f22;
+
+  /* Live — a line is connected/healthy. */
+  --color-live: #1f6e52;
+  --color-live-soft: #d9e9df;
+
+  /* Neutrals (warm) */
+  --color-paper: #f5f1e8; /* app background */
+  --color-surface: #fffcf6; /* cards */
+  --color-surface-strong: #e9e4d9; /* hover, rails */
+  --color-ink: #1e2421; /* primary text */
+  --color-muted: #6e746f; /* secondary text */
+  --color-border: #d8d2c6;
+
+  /* Semantic */
+  --color-success: #2e7d5b;
+  --color-warning: #b7791f;
+  --color-error: #d6452f;
+  --color-info: #39516e;
+
+  color-scheme: light;
+}
+
+/* Dark mode — warm-tinted, never pure black. Token-driven, first-class.
+   Applied via .dark class (explicit toggle) OR prefers-color-scheme (default). */
+.dark {
+  --color-signal: #e86041;
+  --color-signal-hover: #f37a5e;
+
+  --color-live: #3e9a77;
+  --color-live-soft: #234034;
+
+  --color-paper: #171b19;
+  --color-surface: #1e2321;
+  --color-surface-strong: #262c29;
+  --color-ink: #ede8dd;
+  --color-muted: #9aa19a;
+  --color-border: #3a413d;
+
+  --color-success: #3e9a77;
+  --color-warning: #d99a3d;
+  --color-error: #e86041;
+  --color-info: #6f8fb5;
+
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    --color-signal: #e86041;
+    --color-signal-hover: #f37a5e;
+
+    --color-live: #3e9a77;
+    --color-live-soft: #234034;
+
+    --color-paper: #171b19;
+    --color-surface: #1e2321;
+    --color-surface-strong: #262c29;
+    --color-ink: #ede8dd;
+    --color-muted: #9aa19a;
+    --color-border: #3a413d;
+
+    --color-success: #3e9a77;
+    --color-warning: #d99a3d;
+    --color-error: #e86041;
+    --color-info: #6f8fb5;
+
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-sans;
+  }
+
+  .font-mono,
+  code,
+  pre,
+  kbd {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ==========================================================================
+   Ant Design Menu — active-item indicator (see docs/design-tokens.md /
+   src/theme/antdTheme.ts for the itemSelectedBg/itemHoverBg fix this pairs
+   with).
+
+   DESIGN.md's idiom for this system is "hard rules and ledger lines," and
+   signal red is reserved for "the answer moment ONLY." A left rule on the
+   selected nav item isn't decorative — it's the one place a rule legitimately
+   marks "you are here," the same way a ledger marks a total. Ant Design's
+   inline Menu has no component token for this (Tabs has `inkBar`, Menu does
+   not), so it's expressed here as a thin absolutely-positioned bar rather
+   than a component-token override.
+   ========================================================================== */
+.ant-menu-inline .ant-menu-item-selected,
+.ant-menu-vertical .ant-menu-item-selected {
+  position: relative;
+}
+
+.ant-menu-inline .ant-menu-item-selected::before,
+.ant-menu-vertical .ant-menu-item-selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--color-signal);
+}

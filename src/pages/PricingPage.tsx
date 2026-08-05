@@ -3,7 +3,7 @@ import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { authenticatedFetchJson } from '../lib/fetchJson';
 
 interface BillingPayload {
   plan?: { id?: unknown };
@@ -39,34 +39,34 @@ const PricingTier = ({
   price,
   userIsAuthenticated,
 }: PricingTierProps) => {
-  const buttonClassName = `block w-full text-center py-3 rounded-lg font-semibold ${
-    highlighted
-      ? 'bg-white text-blue-600 hover:bg-blue-50'
-      : 'bg-blue-600 text-white hover:bg-blue-700'
-  } ${isCurrent || isSubmitting ? 'cursor-not-allowed opacity-70' : ''}`;
-  return (
-    <div className={`p-8 rounded-lg ${highlighted ? 'bg-blue-600 text-white' : 'bg-white'}`}>
-      <div className='mb-3 min-h-6'>
-        {isCurrent && (
-          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${highlighted ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'}`}>
-            Current plan
-          </span>
-        )}
-      </div>
-      <h3 className='text-2xl font-bold mb-2'>{name}</h3>
-      <div className='mb-4'>
-        <span className='text-4xl font-bold'>${price}</span>
-        <span className='text-sm opacity-80'>/month</span>
-      </div>
-      <p className={`mb-6 ${highlighted ? 'text-blue-100' : 'text-gray-600'}`}>{description}</p>
-      <ul className='space-y-4 mb-8'>
-        {features.map((feature) => (
-          <li key={feature} className='flex items-center'>
-            <Check className={`w-5 h-5 mr-2 ${highlighted ? 'text-blue-200' : 'text-blue-600'}`} />
-            <span>{feature}</span>
-          </li>
-        ))}
-      </ul>
+   const buttonClassName = `block w-full text-center py-3 rounded-control font-semibold ${
+     highlighted
+       ? 'bg-paper text-signal hover:bg-surface'
+       : 'bg-signal text-paper hover:bg-signal/90'
+   } ${isCurrent || isSubmitting ? 'cursor-not-allowed opacity-70' : ''}`;
+   return (
+     <div className={`p-lg rounded-card ${highlighted ? 'bg-signal text-paper' : 'bg-paper'}`}>
+       <div className='mb-3 min-h-6'>
+         {isCurrent && (
+           <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${highlighted ? 'bg-paper/20 text-paper' : 'bg-signal/10 text-signal'}`}>
+             Current plan
+           </span>
+         )}
+       </div>
+       <h3 className='text-2xl font-bold mb-2'>{name}</h3>
+       <div className='mb-4'>
+         <span className='text-4xl font-bold'>${price}</span>
+         <span className='text-sm opacity-80'>/month</span>
+       </div>
+       <p className={`mb-6 ${highlighted ? 'text-paper/80' : 'text-muted'}`}>{description}</p>
+       <ul className='space-y-4 mb-8'>
+         {features.map((feature) => (
+           <li key={feature} className='flex items-center'>
+             <Check className={`w-5 h-5 mr-2 ${highlighted ? 'text-paper/60' : 'text-signal'}`} />
+             <span>{feature}</span>
+           </li>
+         ))}
+       </ul>
       {userIsAuthenticated ? (
         <button
           type='button'
@@ -106,17 +106,8 @@ const PricingPage = () => {
     const loadBilling = async () => {
       setBillingError(null);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) throw new Error('Sign in required');
-
-        const response = await fetch('/api/billing', {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
-        const payload = await response.json() as BillingPayload & { error?: unknown };
-        if (!response.ok || typeof payload.plan?.id !== 'string') {
+        const payload = await authenticatedFetchJson<BillingPayload & { error?: unknown }>('/api/billing');
+        if (typeof payload.plan?.id !== 'string') {
           const message = typeof payload.error === 'string' ? payload.error : 'Unable to load current plan';
           throw new Error(message);
         }
@@ -138,19 +129,11 @@ const PricingPage = () => {
     setCheckoutError(null);
     setSubmittingPlanId(planId);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Sign in required');
-
-      const response = await fetch('/api/stripe-checkout', {
+      const payload = await authenticatedFetchJson<CheckoutPayload>('/api/stripe-checkout', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
         body: JSON.stringify({ planId }),
       });
-      const payload = await response.json() as CheckoutPayload;
-      if (!response.ok || typeof payload.url !== 'string') {
+      if (typeof payload.url !== 'string') {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'Unable to start checkout');
       }
       window.location.href = payload.url;
@@ -160,19 +143,19 @@ const PricingPage = () => {
     }
   };
 
-  return (
-    <div className='min-h-screen bg-gray-50 py-16'>
-      <div className='container mx-auto px-4'>
-        <div className='text-center mb-16'>
-          <h1 className='text-4xl font-bold mb-4'>Simple, Transparent Pricing</h1>
-          <p className='text-xl text-gray-600'>
-            Choose the plan that best fits your business needs
-          </p>
-          {user && currentPlanId === 'free' && (
-            <span className='mt-4 inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700'>
-              Current plan: Free
-            </span>
-          )}
+   return (
+     <div className='min-h-screen bg-surface py-xl'>
+       <div className='container mx-auto px-4'>
+         <div className='text-center mb-xl'>
+           <h1 className='text-4xl font-bold mb-4'>Simple, Transparent Pricing</h1>
+           <p className='text-xl text-muted'>
+             Choose the plan that best fits your business needs
+           </p>
+           {user && currentPlanId === 'free' && (
+             <span className='mt-4 inline-flex rounded-full bg-signal/10 px-3 py-1 text-sm font-semibold text-signal'>
+               Current plan: Free
+             </span>
+           )}
           {billingError && <p className='mt-4 text-sm text-red-600'>{billingError}</p>}
           {checkoutError && <p className='mt-4 text-sm text-red-600'>{checkoutError}</p>}
         </div>
@@ -234,18 +217,18 @@ const PricingPage = () => {
           />
         </div>
 
-        <div className='mt-16 text-center'>
-          <h2 className='text-2xl font-bold mb-4'>Need a Custom Solution?</h2>
-          <p className='text-gray-600 mb-8'>
-            Contact us to discuss your specific requirements and get a tailored quote.
-          </p>
-          <Link
-            to='/contact'
-            className='inline-block bg-gray-800 text-white px-8 py-3 rounded-lg font-semibold hover:bg-gray-900'
-          >
-            Contact Sales
-          </Link>
-        </div>
+         <div className='mt-xl text-center'>
+           <h2 className='text-2xl font-bold mb-4'>Need a Custom Solution?</h2>
+           <p className='text-muted mb-xl'>
+             Contact us to discuss your specific requirements and get a tailored quote.
+           </p>
+           <Link
+             to='/contact'
+             className='inline-block bg-ink text-paper px-xl py-3 rounded-card font-semibold hover:bg-ink/90'
+           >
+             Contact Sales
+           </Link>
+         </div>
       </div>
     </div>
   );

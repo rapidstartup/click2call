@@ -68,6 +68,11 @@ export function recordingStatusLabel(status: string | null): string {
   }
 }
 
+export function embedCode(widgetId: string): string {
+  const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY || '';
+  return `<script src="https://click2call.ai/widget.js" data-widget-id="${widgetId}" data-turnstile-site-key="${siteKey}" async></script>`;
+}
+
 export function leadOutcomeLabel(outcome: string | null): string {
   switch (outcome?.trim().toLowerCase()) {
     case 'qualified':
