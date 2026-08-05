@@ -36,7 +36,7 @@ export interface StartVapiWebCallInput {
   client: MeteringRpcClient;
   maxDurationSeconds: number;
   requestVapiWebCall: (apiKey: string, body: Record<string, unknown>) => Promise<VapiProxyResponse>;
-  userId: string;
+  userId: string | null;
   vapiWebhookRecipient: string;
   widgetId: string;
   roomDeleteOnUserLeaveEnabled?: boolean;
@@ -186,16 +186,19 @@ async function releaseCallReservation(
 }
 
 export async function startVapiWebCall(input: StartVapiWebCallInput): Promise<VapiWebCallResult> {
+  const meteringEnabled = Boolean(input.userId);
   const reservationId = input.reservationId || randomUUID();
-  const reservation = await reserveCall(input.client, {
-    maxDurationSeconds: input.maxDurationSeconds,
-    reservationId,
-    userId: input.userId,
-    widgetId: input.widgetId,
-  });
+  if (meteringEnabled) {
+    const reservation = await reserveCall(input.client, {
+      maxDurationSeconds: input.maxDurationSeconds,
+      reservationId,
+      userId: input.userId,
+      widgetId: input.widgetId,
+    });
 
-  if (reservation.allowed === false) {
-    return reservation.capReached ? { kind: 'cap-reached' } : { kind: 'metering-error' };
+    if (reservation.allowed === false) {
+      return reservation.capReached ? { kind: 'cap-reached' } : { kind: 'metering-error' };
+    }
   }
 
   const requestBody: Record<string, unknown> = {
@@ -215,12 +218,12 @@ export async function startVapiWebCall(input: StartVapiWebCallInput): Promise<Va
   try {
     vapiResponse = await input.requestVapiWebCall(input.webCallApiKey, requestBody);
   } catch {
-    await releaseCallReservation(input.client, reservationId);
+    if (meteringEnabled) await releaseCallReservation(input.client, reservationId);
     return { kind: 'provider-error' };
   }
 
   if (vapiResponse.statusCode < 200 || vapiResponse.statusCode >= 300) {
-    await releaseCallReservation(input.client, reservationId);
+    if (meteringEnabled) await releaseCallReservation(input.client, reservationId);
     return { kind: 'provider-error' };
   }
 
@@ -228,24 +231,26 @@ export async function startVapiWebCall(input: StartVapiWebCallInput): Promise<Va
   try {
     responsePayload = JSON.parse(vapiResponse.body);
   } catch {
-    await releaseCallReservation(input.client, reservationId);
+    if (meteringEnabled) await releaseCallReservation(input.client, reservationId);
     return { kind: 'provider-error' };
   }
 
   const vapiCallId = extractVapiCallId(responsePayload);
   if (!vapiCallId) {
-    await releaseCallReservation(input.client, reservationId);
+    if (meteringEnabled) await releaseCallReservation(input.client, reservationId);
     return { kind: 'provider-error' };
   }
 
-  try {
-    if (!await finalizeCallReservation(input.client, reservationId, vapiCallId)) {
+  if (meteringEnabled) {
+    try {
+      if (!await finalizeCallReservation(input.client, reservationId, vapiCallId)) {
+        await releaseCallReservation(input.client, reservationId);
+        return { kind: 'provider-error' };
+      }
+    } catch {
       await releaseCallReservation(input.client, reservationId);
       return { kind: 'provider-error' };
     }
-  } catch {
-    await releaseCallReservation(input.client, reservationId);
-    return { kind: 'provider-error' };
   }
 
   return { kind: 'started', response: vapiResponse };

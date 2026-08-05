@@ -36,6 +36,7 @@ test('a distinct private-like value cannot be emitted as browser configuration',
   }), {
     apiKey: 'private-secret',
     assistantId: 'assistant-id',
+    publicApiKey: 'another-private-secret',
   });
 });
 

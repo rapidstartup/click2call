@@ -29,7 +29,7 @@ function createRpc(
 
 function baseInput(client: ReturnType<typeof createRpc>, requestVapiWebCall: (apiKey: string, body: Record<string, unknown>) => Promise<{ body: string; statusCode: number; contentType?: string }>) {
   return {
-    apiKey: 'server-vapi-key',
+    webCallApiKey: 'server-vapi-key',
     assistantId: 'assistant-1',
     client,
     maxDurationSeconds: 1800,
@@ -142,6 +142,25 @@ test('reserveCall surfaces cap-reached from the RPC result', async () => {
   assert.equal(result.allowed, false);
   const denied = result as Extract<typeof result, { allowed: false }>;
   assert.equal(denied.capReached, true);
+});
+
+test('a public widget with no owner skips metering but still starts the web call', async () => {
+  const client = createRpc(async () => ({ data: null, error: null }));
+  let capturedKey: string | null = null;
+  const vapi = async (apiKey: string) => {
+    capturedKey = apiKey;
+    return { statusCode: 200, body: JSON.stringify({ id: 'vapi-call-demo' }), contentType: 'application/json' };
+  };
+
+  const result = await startVapiWebCall({
+    ...baseInput(client, vapi),
+    userId: null,
+  });
+
+  assert.equal(result.kind, 'started');
+  assert.equal(capturedKey, 'server-vapi-key');
+  assert.equal(client.calls.filter((entry) => entry.fn === 'reserve_call').length, 0);
+  assert.equal(client.calls.filter((entry) => entry.fn === 'finalize_call_reservation').length, 0);
 });
 
 test('maxDurationSeconds reads the widget setting and clamps to the physical bounds', () => {
