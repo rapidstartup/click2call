@@ -20,6 +20,7 @@ const Dashboard: React.FC = () => {
   const searchParams = new URLSearchParams(location.search);
   const defaultTab = searchParams.get('tab') || 'overview';
   const [isCreatorVisible, setIsCreatorVisible] = useState(false);
+  const [widgetsRefreshKey, setWidgetsRefreshKey] = useState(0);
 
   const handleTabChange = (activeKey: string) => {
     navigate(`/dashboard?tab=${activeKey}`);
@@ -99,7 +100,7 @@ const Dashboard: React.FC = () => {
               Create New Widget
             </Button>
           </Row>
-          <WidgetList />
+          <WidgetList key={widgetsRefreshKey} />
         </div>
       ),
     },
@@ -136,7 +137,12 @@ const Dashboard: React.FC = () => {
           footer={null}
           width={800}
         >
-          <WidgetCreator onSuccess={() => setIsCreatorVisible(false)} />
+          <WidgetCreator
+            onSuccess={() => {
+              setIsCreatorVisible(false);
+              setWidgetsRefreshKey((key) => key + 1);
+            }}
+          />
         </Modal>
       </div>
     </div>
