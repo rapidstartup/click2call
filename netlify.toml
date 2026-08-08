@@ -18,6 +18,21 @@
   targetPort = 5173
   functionsPort = 8888
 
+# HighLevel (LeadConnector) OAuth + webhook redirect URIs are registered with
+# fixed nested paths in HighLevel's marketplace app config, so they need
+# explicit rules ahead of the generic /api/* catch-all below.
+[[redirects]]
+  from = "/api/lc/oauth"
+  to = "/.netlify/functions/lc-oauth"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/lc/webhooks"
+  to = "/.netlify/functions/lc-webhooks"
+  status = 200
+  force = true
+
 # API redirects must come before the SPA catch-all
 [[redirects]]
   from = "/api/*"
