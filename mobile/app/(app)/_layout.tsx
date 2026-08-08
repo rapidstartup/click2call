@@ -1,4 +1,4 @@
-import { Redirect } from 'expo-router';
+import { Redirect, Slot } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function AppLayout() {
@@ -14,6 +14,6 @@ export default function AppLayout() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  // Otherwise, render the app content
-  return <Redirect href="/(app)/(tabs)/" />;
+  // Otherwise, render the matched child route (the (tabs) navigator)
+  return <Slot />;
 }
