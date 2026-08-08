@@ -11,6 +11,7 @@ const headers = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Cache-Control': 'no-store',
+  'Content-Type': 'application/json',
 };
 
 function response(statusCode: number, body: unknown) {
