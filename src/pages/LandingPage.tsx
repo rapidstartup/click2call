@@ -403,6 +403,12 @@ const LandingPage = () => {
             <a href="#demo" className="hover:text-ink">
               Demo
             </a>
+            <Link to="/privacy" className="hover:text-ink">
+              Privacy
+            </Link>
+            <Link to="/terms" className="hover:text-ink">
+              Terms
+            </Link>
           </div>
           <p className="text-xs text-muted">
             © {new Date().getFullYear()} Click2Call.ai

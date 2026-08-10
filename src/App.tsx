@@ -18,6 +18,8 @@ import EmbedWidgetPage from './pages/EmbedWidgetPage.tsx';
 import LeadsPage from './pages/LeadsPage.tsx';
 import AdminPage from './pages/AdminPage.tsx';
 import NotFoundPage from './pages/NotFoundPage.tsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
+import TermsOfServicePage from './pages/TermsOfServicePage.tsx';
 import DashboardLayout from './components/DashboardLayout.tsx';
 import { useIsAdmin } from './hooks/useIsAdmin';
 
@@ -67,6 +69,8 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/embed/:widgetId" element={<EmbedWidgetPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
 
           <Route path="/onboarding" element={
             <ProtectedRoute>
