@@ -26,6 +26,9 @@ export default function SettingsScreen() {
   const [darkModeEnabled, setDarkModeEnabled] = useState(true);
   const [autoAnswerEnabled, setAutoAnswerEnabled] = useState(false);
   const [useSpeakerphoneEnabled, setUseSpeakerphoneEnabled] = useState(false);
+  const profileName = typeof user?.user_metadata?.name === 'string'
+    ? user.user_metadata.name
+    : user?.email?.split('@')[0] || 'Account';
 
   const handleSignOut = () => {
     if (Platform.OS === 'web') {
@@ -55,12 +58,12 @@ export default function SettingsScreen() {
           <View style={styles.profileCard}>
             <View style={styles.avatarContainer}>
               <Text style={styles.avatarText}>
-                {user?.name?.charAt(0) || 'U'}
+                {profileName.charAt(0).toUpperCase()}
               </Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name || 'User'}</Text>
-              <Text style={styles.profileEmail}>{user?.email || 'user@example.com'}</Text>
+              <Text style={styles.profileName}>{profileName}</Text>
+              <Text style={styles.profileEmail}>{user?.email || 'Email unavailable'}</Text>
             </View>
             <TouchableOpacity style={styles.profileButton}>
               <User size={20} color="#2563EB" />

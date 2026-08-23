@@ -37,7 +37,7 @@ create table mobile_devices (
   user_id uuid references auth.users(id) on delete cascade,
   device_token text not null,
   device_name text,
-  platform text not null check (platform in ('ios', 'android')),
+  platform text not null check (platform in ('ios', 'android', 'web')),
   app_version text not null,
   last_active timestamp with time zone default now(),
   created_at timestamp with time zone default now(),
@@ -56,7 +56,8 @@ create table widget_routes (
   status text not null check (status in ('active', 'inactive')),
   last_ping timestamp with time zone,
   created_at timestamp with time zone default now(),
-  updated_at timestamp with time zone default now()
+  updated_at timestamp with time zone default now(),
+  unique(widget_id, device_id)
 );
 
 -- Enable RLS on widget_routes
@@ -126,4 +127,4 @@ $$ language 'plpgsql';
 create trigger update_widgets_updated_at
   before update on widgets
   for each row
-  execute function update_updated_at_column(); 
+  execute function update_updated_at_column();

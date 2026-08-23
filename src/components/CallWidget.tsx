@@ -139,6 +139,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const challengeConsumedRef = useRef(false);
   const capHandledAttemptRef = useRef(0);
+  const finishedAttemptRef = useRef(0);
 
   useEffect(() => {
     isCallingRef.current = isCalling;
@@ -340,6 +341,10 @@ const CallWidget: React.FC<CallWidgetProps> = ({
 
   const finishCall = useCallback(
     (outcome: 'completed' | 'error' | 'cancelled', message?: string) => {
+      const attemptId = callAttemptRef.current;
+      if (attemptId > 0 && finishedAttemptRef.current === attemptId) return;
+      finishedAttemptRef.current = attemptId;
+
       const vapi = vapiRef.current;
       vapiRef.current = null;
       if (vapi) {
@@ -378,6 +383,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
     if (!details) return false;
     if (capHandledAttemptRef.current === attemptId) return true;
     capHandledAttemptRef.current = attemptId;
+    finishedAttemptRef.current = attemptId;
 
     const vapi = vapiRef.current;
     vapiRef.current = null;
@@ -415,6 +421,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
       setCallError(null);
       setUpsellUrl(null);
       capHandledAttemptRef.current = 0;
+      finishedAttemptRef.current = 0;
       setShowConversion(false);
       setIsCalling(true);
       setStatus('Connecting you…');
@@ -428,7 +435,11 @@ const CallWidget: React.FC<CallWidgetProps> = ({
           const vapi = new Vapi(widgetCallToken, `${SOCKET_SERVER_URL}/vapi-proxy`);
           vapiRef.current = vapi;
           vapi.on('call-end', () => {
-            if (attemptId === callAttemptRef.current && capHandledAttemptRef.current !== attemptId) {
+            if (
+              attemptId === callAttemptRef.current
+              && capHandledAttemptRef.current !== attemptId
+              && finishedAttemptRef.current !== attemptId
+            ) {
               finishCall('completed');
             }
           });
@@ -502,7 +513,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
                className={[
                  'flex h-11 w-11 items-center justify-center rounded-full',
                  isCalling
-                   ? 'animate-pulse bg-success'
+                   ? 'bg-live'
                    : isConnected
                      ? 'bg-signal'
                      : 'bg-border',
@@ -549,7 +560,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
            {upsellUrl && (
              <div className='mt-3 rounded-card bg-surface p-3 text-left ring-1 ring-border'>
                <p className='text-xs font-semibold text-ink'>
-                 This site's monthly call allowance is reached.
+                 This site's calling minutes are used up.
                </p>
                <a
                  href={upsellUrl}
@@ -557,7 +568,7 @@ const CallWidget: React.FC<CallWidgetProps> = ({
                  rel='noreferrer'
                  className='mt-2 inline-flex items-center gap-1 text-xs font-semibold text-signal hover:text-signal/80'
                >
-                 Upgrade to keep calling
+                 See calling plans
                  <ArrowRight className='h-3.5 w-3.5' />
                </a>
              </div>

@@ -141,11 +141,11 @@
 
 .c2c-wave-bar {
   transform-origin: center;
-  animation: c2c-wave 1.6s ease-in-out infinite;
+  transform: scaleY(0.3);
 }
 
 .c2c-wave-bar-active {
-  animation-duration: 0.75s;
+  animation: c2c-wave 0.75s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {

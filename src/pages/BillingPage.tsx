@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowRight, CreditCard, Gauge, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

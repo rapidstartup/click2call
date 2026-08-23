@@ -9,17 +9,22 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
+      "bundleIdentifier": "ai.click2call.app",
+      "buildNumber": "1",
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
-          "voip",
           "audio"
-        ]
+        ],
+        "NSMicrophoneUsageDescription": "Allow Click2Call.ai to access your microphone for calls."
       }
     },
     "android": {
+      "package": "ai.click2call.app",
+      "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#F5F1E8"
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -38,7 +43,17 @@
         {
           "microphonePermission": "Allow Click2Call.ai to access your microphone."
         }
-      ]
+      ],
+      "expo-secure-store",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "1.9.25"
+          }
+        }
+      ],
+      "./plugins/withPinnedKotlin.js"
     ],
     "experiments": {
       "typedRoutes": true
