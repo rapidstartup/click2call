@@ -16,6 +16,7 @@ const FOREIGN_DEVICE_ID = 'device-b';
 
 function installSupabaseStub() {
   const upserts = [];
+  const allFilters = [];
   const originalFrom = supabase.from;
   const originalGetUser = supabase.auth.getUser;
 
@@ -32,7 +33,27 @@ function installSupabaseStub() {
       select: () => query,
       eq: (column, value) => {
         filters.push([column, value]);
+        allFilters.push([table, column, value]);
         return query;
+      },
+      order: () => query,
+      limit: async () => {
+        if (table === 'calls') {
+          return {
+            data: [{
+              id: 'call-a',
+              widget_id: WIDGET_ID,
+              status: 'completed',
+              outcome: 'qualified',
+              duration_s: 95,
+              started_at: '2026-08-24T01:00:00.000Z',
+              updated_at: '2026-08-24T01:01:35.000Z',
+              widgets: { name: 'Sales line' }
+            }],
+            error: null
+          };
+        }
+        return { data: [], error: null };
       },
       upsert: (payload) => {
         upserts.push({ table, payload });
@@ -69,6 +90,7 @@ function installSupabaseStub() {
   };
 
   return {
+    allFilters,
     upserts,
     restore() {
       supabase.from = originalFrom;
@@ -115,6 +137,41 @@ async function postRoute(deviceId) {
   }
 }
 
+async function getCalls() {
+  const app = express();
+  app.use(express.json());
+  app.use('/mobile', mobileRoutes);
+
+  const server = http.createServer(app);
+  await new Promise((resolve) => server.listen(0, resolve));
+  const { port } = server.address();
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const request = http.request({
+        hostname: '127.0.0.1',
+        port,
+        path: '/mobile/calls',
+        method: 'GET',
+        headers: { authorization: 'Bearer test-token' }
+      }, (response) => {
+        let body = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => { body += chunk; });
+        response.on('end', () => resolve({
+          statusCode: response.statusCode,
+          body: JSON.parse(body)
+        }));
+      });
+
+      request.on('error', reject);
+      request.end();
+    });
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
+
 test('accepts a route for the authenticated user’s device', async () => {
   const stub = installSupabaseStub();
 
@@ -139,6 +196,31 @@ test('rejects another user’s device before creating a route', async () => {
     assert.equal(response.statusCode, 404);
     assert.deepEqual(response.body, { error: 'Device not found' });
     assert.equal(stub.upserts.length, 0);
+  } finally {
+    stub.restore();
+  }
+});
+
+test('returns the authenticated user’s authoritative call ledger', async () => {
+  const stub = installSupabaseStub();
+
+  try {
+    const response = await getCalls();
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body, [{
+      id: 'call-a',
+      widget_id: WIDGET_ID,
+      widget_name: 'Sales line',
+      status: 'completed',
+      outcome: 'qualified',
+      duration_s: 95,
+      started_at: '2026-08-24T01:00:00.000Z',
+      updated_at: '2026-08-24T01:01:35.000Z'
+    }]);
+    assert.ok(stub.allFilters.some(([table, column, value]) => (
+      table === 'calls' && column === 'user_id' && value === USER_ID
+    )));
   } finally {
     stub.restore();
   }

@@ -8,10 +8,30 @@ interface AuthRequest extends Request {
 
 const router = Router();
 
+function requiredString(value: unknown, maxLength = 255): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized && normalized.length <= maxLength ? normalized : null;
+}
+
+function widgetName(value: unknown): string | undefined {
+  const relation = Array.isArray(value) ? value[0] : value;
+  if (!relation || typeof relation !== 'object') return undefined;
+  const name = (relation as { name?: unknown }).name;
+  return typeof name === 'string' ? name : undefined;
+}
+
 // Register/update mobile device
 router.post('/devices', authenticateUser, async (req: AuthRequest, res: Response) => {
-  const { deviceToken, deviceName, platform, appVersion } = req.body;
+  const deviceToken = requiredString(req.body?.deviceToken, 512);
+  const deviceName = requiredString(req.body?.deviceName);
+  const appVersion = requiredString(req.body?.appVersion, 50);
+  const platform = requiredString(req.body?.platform, 20);
   const userId = req.user.id;
+
+  if (!deviceToken || !deviceName || !appVersion || !platform || !['ios', 'android', 'web'].includes(platform)) {
+    return res.status(400).json({ error: 'A valid device token, name, platform, and app version are required' });
+  }
 
   try {
     const { data, error } = await supabase
@@ -26,7 +46,7 @@ router.post('/devices', authenticateUser, async (req: AuthRequest, res: Response
       }, {
         onConflict: 'user_id,device_token'
       })
-      .select()
+      .select('id, device_token, device_name, platform, app_version, last_active')
       .single();
 
     if (error) throw error;
@@ -51,13 +71,9 @@ router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response)
         routing,
         widget_routes (
           id,
+          device_id,
           status,
-          last_ping,
-          mobile_devices (
-            device_name,
-            platform,
-            last_active
-          )
+          last_ping
         )
       `)
       .eq('user_id', userId);
@@ -69,11 +85,42 @@ router.get('/widgets', authenticateUser, async (req: AuthRequest, res: Response)
   }
 });
 
+// Get the authenticated user's authoritative VAPI call ledger.
+router.get('/calls', authenticateUser, async (req: AuthRequest, res: Response) => {
+  try {
+    const { data, error } = await supabase
+      .from('calls')
+      .select('id, widget_id, status, outcome, duration_s, started_at, updated_at, widgets(name)')
+      .eq('user_id', req.user.id)
+      .order('started_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    res.json((data || []).map((call) => ({
+      id: call.id,
+      widget_id: call.widget_id,
+      widget_name: widgetName(call.widgets),
+      status: call.status,
+      outcome: call.outcome,
+      duration_s: call.duration_s,
+      started_at: call.started_at,
+      updated_at: call.updated_at,
+    })));
+  } catch {
+    res.status(500).json({ error: 'Failed to fetch call history' });
+  }
+});
+
 // Update device status for a widget
 router.post('/widgets/:widgetId/route', authenticateUser, async (req: AuthRequest, res: Response) => {
   const { widgetId } = req.params;
-  const { deviceId, status } = req.body;
+  const deviceId = requiredString(req.body?.deviceId);
+  const status = requiredString(req.body?.status, 20);
   const userId = req.user.id;
+
+  if (!deviceId || !status || !['active', 'inactive'].includes(status)) {
+    return res.status(400).json({ error: 'A valid device and route status are required' });
+  }
 
   try {
     // Verify widget ownership

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Phone, Bot, Voicemail, ArrowRight } from 'lucide-react';
 
 const CallRoutingPage = () => {

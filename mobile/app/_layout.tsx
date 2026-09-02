@@ -14,12 +14,12 @@ const appTheme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    primary: '#2563EB',
-    background: '#121212',
-    card: '#1E1E1E',
-    text: '#FFFFFF',
-    border: '#323232',
-    notification: '#2563EB',
+    primary: '#E86041',
+    background: '#171B19',
+    card: '#1E2321',
+    text: '#EDE8DD',
+    border: '#3A413D',
+    notification: '#E86041',
   },
 };
 
@@ -48,7 +48,7 @@ export default function RootLayout() {
       <AuthProvider>
         <Stack screenOptions={{ 
           headerShown: false,
-          contentStyle: { backgroundColor: '#121212' },
+          contentStyle: { backgroundColor: '#171B19' },
         }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(app)" options={{ headerShown: false }} />

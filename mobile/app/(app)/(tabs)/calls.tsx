@@ -1,277 +1,177 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, ScrollView, RefreshControl, ActivityIndicator, Modal } from 'react-native';
-import { fetchCallHistory } from '@/services/api';
-import { CallData } from '@/types/widget';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { Phone } from 'lucide-react-native';
+
 import CallCard from '@/components/CallCard';
-import IncomingCallModal from '@/components/IncomingCallModal';
-import ActiveCallPanel from '@/components/ActiveCallPanel';
-import callService from '@/services/callService';
-import { PhoneMissed } from 'lucide-react-native';
+import { fetchCallHistory } from '@/services/api';
+import type { CallData } from '@/types/widget';
 
 export default function CallsScreen() {
   const [calls, setCalls] = useState<CallData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
-  // VOIP call states
-  const [incomingCall, setIncomingCall] = useState<any>(null);
-  const [showIncomingCall, setShowIncomingCall] = useState(false);
-  const [activeCall, setActiveCall] = useState<any>(null);
 
-  // Initialize call service
-  useEffect(() => {
-    const initCallService = async () => {
-      try {
-        await callService.init();
-        
-        // Set up socket event handlers
-        const socketService = require('@/services/socketService').default;
-        
-        socketService.onIncomingCall((callData: any) => {
-          console.log('Incoming call received', callData);
-          setIncomingCall(callData);
-          setShowIncomingCall(true);
-        });
-        
-        socketService.onCallEnded((callId: string) => {
-          if (activeCall && activeCall.id === callId) {
-            setActiveCall(null);
-          }
-          if (incomingCall && incomingCall.id === callId) {
-            setIncomingCall(null);
-            setShowIncomingCall(false);
-          }
-          // Refresh call history
-          loadCalls();
-        });
-        
-        socketService.onError((error: any) => {
-          console.error('Socket error:', error);
-        });
-      } catch (error) {
-        console.error('Error initializing call service:', error);
-      }
-    };
-
-    initCallService();
-    loadCalls();
-
-    // Clean up on unmount
-    return () => {
-      callService.disconnect();
-    };
-  }, []);
-
-  // Load call history
-  const loadCalls = async () => {
+  const loadCalls = useCallback(async () => {
     try {
       setError(null);
-      const data = await fetchCallHistory();
-      setCalls(data);
-    } catch (error) {
-      console.error('Error loading call history:', error);
-      setError('Failed to load call history. Please try again.');
+      setCalls(await fetchCallHistory());
+    } catch (loadError) {
+      console.error('Error loading call history:', loadError);
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load call history');
     } finally {
       setIsLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  // Handle pull-to-refresh
-  const onRefresh = async () => {
+  useEffect(() => {
+    void loadCalls();
+  }, [loadCalls]);
+
+  const onRefresh = () => {
     setRefreshing(true);
-    await loadCalls();
+    void loadCalls();
   };
 
-  // Handle answering an incoming call
-  const handleAnswerCall = async (callId: string) => {
-    try {
-      await callService.answerCall(callId);
-      setActiveCall(incomingCall);
-      setIncomingCall(null);
-      setShowIncomingCall(false);
-    } catch (error) {
-      console.error('Error answering call:', error);
-    }
-  };
-
-  // Handle rejecting an incoming call
-  const handleRejectCall = async (callId: string) => {
-    try {
-      await callService.rejectCall(callId);
-      setIncomingCall(null);
-      setShowIncomingCall(false);
-    } catch (error) {
-      console.error('Error rejecting call:', error);
-    }
-  };
-
-  // Handle ending an active call
-  const handleEndCall = async (callId: string) => {
-    try {
-      await callService.endCall(callId);
-      setActiveCall(null);
-    } catch (error) {
-      console.error('Error ending call:', error);
-    }
-  };
-
-  // Handle toggling mute state
-  const handleToggleMute = async (callId: string, muted: boolean) => {
-    try {
-      await callService.toggleMute(callId, muted);
-    } catch (error) {
-      console.error('Error toggling mute:', error);
-    }
-  };
+  const completed = calls.filter((call) => call.status === 'completed').length;
+  const minutes = Math.round(calls.reduce((total, call) => total + call.duration, 0) / 60);
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Calls</Text>
+        <Text style={styles.eyebrow}>CALL LEDGER</Text>
+        <Text style={styles.headerTitle}>Every conversation, accounted for.</Text>
         <Text style={styles.headerSubtitle}>
-          Call history and incoming calls
+          Your latest Vapi calls from the same account as the web dashboard.
         </Text>
       </View>
 
-      {/* Call history list */}
-      <View style={styles.callsContainer}>
-        <Text style={styles.sectionTitle}>Recent Calls</Text>
-        
-        {isLoading ? (
-          <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#2563EB" />
-          </View>
-        ) : error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : calls.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <PhoneMissed size={48} color="#6B7280" />
-            <Text style={styles.emptyText}>No call history</Text>
-            <Text style={styles.emptySubtext}>
-              Your call history will appear here
-            </Text>
-          </View>
-        ) : (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.scrollContent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                tintColor="#2563EB"
-                colors={['#2563EB']}
-              />
-            }
-          >
-            {calls.map(call => (
-              <CallCard
-                key={call.id}
-                call={call}
-                onCallBack={() => {}} // Implement call back functionality if needed
-              />
-            ))}
-          </ScrollView>
-        )}
+      <View style={styles.summary}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{calls.length}</Text>
+          <Text style={styles.summaryLabel}>Recent calls</Text>
+        </View>
+        <View style={styles.summaryRule} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{completed}</Text>
+          <Text style={styles.summaryLabel}>Completed</Text>
+        </View>
+        <View style={styles.summaryRule} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{minutes}</Text>
+          <Text style={styles.summaryLabel}>Minutes</Text>
+        </View>
       </View>
 
-      {/* Incoming call modal */}
-      <IncomingCallModal
-        visible={showIncomingCall}
-        callData={incomingCall}
-        onAnswer={handleAnswerCall}
-        onReject={handleRejectCall}
-      />
+      <View style={styles.ledgerHeader}>
+        <Text style={styles.sectionTitle}>Latest activity</Text>
+        <Text style={styles.sectionMeta}>LAST 50</Text>
+      </View>
 
-      {/* Active call panel */}
-      {activeCall && (
-        <ActiveCallPanel
-          callData={activeCall}
-          onEndCall={handleEndCall}
-          onToggleMute={handleToggleMute}
-        />
+      {isLoading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size='large' color='#E86041' />
+          <Text style={styles.loadingText}>Reading the call ledger…</Text>
+        </View>
+      ) : (
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={(
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor='#E86041'
+              colors={['#E86041']}
+            />
+          )}
+        >
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity onPress={() => void loadCalls()}>
+                <Text style={styles.retryText}>Try again</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {calls.length === 0 && !error ? (
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIcon}>
+                <Phone size={24} color='#E86041' />
+              </View>
+              <Text style={styles.emptyTitle}>No calls recorded yet</Text>
+              <Text style={styles.emptyText}>
+                Completed web voice calls will appear here after Vapi reports them.
+              </Text>
+            </View>
+          ) : (
+            calls.map((call) => <CallCard key={call.id} call={call} />)
+          )}
+        </ScrollView>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#121212',
+  container: { flex: 1, backgroundColor: '#171B19' },
+  header: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 20 },
+  eyebrow: {
+    color: '#E86041', fontFamily: 'Inter-SemiBold', fontSize: 10,
+    letterSpacing: 2.2, marginBottom: 10,
   },
-  header: {
-    paddingTop: 16,
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#323232',
-  },
-  headerTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 24,
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
+  headerTitle: { color: '#EDE8DD', fontFamily: 'Inter-Bold', fontSize: 27, lineHeight: 34 },
   headerSubtitle: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: '#9CA3AF',
+    color: '#A7AAA5', fontFamily: 'Inter-Regular', fontSize: 14,
+    lineHeight: 21, marginTop: 7, maxWidth: 350,
   },
-  callsContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 16,
+  summary: {
+    borderBottomColor: '#3A413D', borderBottomWidth: 1, borderTopColor: '#3A413D',
+    borderTopWidth: 1, flexDirection: 'row', marginHorizontal: 20, paddingVertical: 16,
   },
-  sectionTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: '#FFFFFF',
-    marginBottom: 16,
+  summaryItem: { flex: 1 },
+  summaryRule: { backgroundColor: '#3A413D', marginHorizontal: 12, width: 1 },
+  summaryValue: { color: '#EDE8DD', fontFamily: 'Inter-Bold', fontSize: 23 },
+  summaryLabel: {
+    color: '#777C77', fontFamily: 'Inter-Medium', fontSize: 9,
+    letterSpacing: 1, marginTop: 4, textTransform: 'uppercase',
   },
-  scrollContent: {
-    paddingBottom: 20,
+  ledgerHeader: {
+    alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingBottom: 12, paddingTop: 24,
   },
-  loaderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  sectionTitle: { color: '#EDE8DD', fontFamily: 'Inter-SemiBold', fontSize: 16 },
+  sectionMeta: { color: '#777C77', fontFamily: 'Inter-SemiBold', fontSize: 9, letterSpacing: 1.5 },
+  scrollContent: { paddingBottom: 30, paddingHorizontal: 20 },
+  centered: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  loadingText: { color: '#A7AAA5', fontFamily: 'Inter-Regular', fontSize: 13, marginTop: 12 },
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    backgroundColor: '#2A201E', borderColor: '#6A362C', borderRadius: 10,
+    borderWidth: 1, marginBottom: 12, padding: 14,
   },
-  errorText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: '#EF4444',
-    textAlign: 'center',
-  },
+  errorText: { color: '#F1B5A7', fontFamily: 'Inter-Regular', fontSize: 13, lineHeight: 19 },
+  retryText: { color: '#E86041', fontFamily: 'Inter-SemiBold', fontSize: 13, marginTop: 8 },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 40,
+    alignItems: 'center', borderColor: '#3A413D', borderRadius: 10,
+    borderWidth: 1, paddingHorizontal: 28, paddingVertical: 36,
   },
+  emptyIcon: {
+    alignItems: 'center', backgroundColor: '#2A2E2B', borderRadius: 999,
+    height: 52, justifyContent: 'center', marginBottom: 16, width: 52,
+  },
+  emptyTitle: { color: '#EDE8DD', fontFamily: 'Inter-SemiBold', fontSize: 17 },
   emptyText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: '#FFFFFF',
-    marginTop: 16,
-  },
-  emptySubtext: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 8,
-    textAlign: 'center',
+    color: '#A7AAA5', fontFamily: 'Inter-Regular', fontSize: 13,
+    lineHeight: 20, marginTop: 8, textAlign: 'center',
   },
 });

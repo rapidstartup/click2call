@@ -10,18 +10,18 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#1E1E1E',
+          backgroundColor: '#1E2321',
         },
         headerTitleStyle: {
           fontFamily: 'Inter-SemiBold',
-          color: '#FFFFFF',
+          color: '#EDE8DD',
         },
         tabBarStyle: {
-          backgroundColor: '#1E1E1E',
-          borderTopColor: '#323232',
+          backgroundColor: '#1E2321',
+          borderTopColor: '#3A413D',
         },
-        tabBarActiveTintColor: '#2563EB',
-        tabBarInactiveTintColor: '#8F8F8F',
+        tabBarActiveTintColor: '#E86041',
+        tabBarInactiveTintColor: '#777C77',
         tabBarLabelStyle: {
           fontFamily: 'Inter-Medium',
         },
@@ -31,7 +31,7 @@ export default function TabLayout() {
             onPress={signOut}
             accessibilityLabel="Sign out"
           >
-            <LogOut size={20} color="#FFFFFF" />
+            <LogOut size={20} color="#EDE8DD" />
           </TouchableOpacity>
         ),
       }}

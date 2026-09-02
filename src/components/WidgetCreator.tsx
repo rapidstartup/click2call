@@ -535,7 +535,7 @@ const WidgetCreator: React.FC<WidgetCreatorProps> = ({ onSuccess }) => {
                   placeholder="Select an assistant"
                   options={vapiAssistants}
                   disabled={!form.getFieldValue(['settings', 'vapi_api_key']) || vapiAssistants.length === 0}
-                  onChange={(value, option) => {
+                  onChange={(_value, option) => {
                     if (option && !Array.isArray(option)) {
                       form.setFieldsValue({
                         settings: {
