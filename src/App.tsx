@@ -20,6 +20,7 @@ import AdminPage from './pages/AdminPage.tsx';
 import NotFoundPage from './pages/NotFoundPage.tsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
 import TermsOfServicePage from './pages/TermsOfServicePage.tsx';
+import RoadmapPage from './pages/RoadmapPage.tsx';
 import DashboardLayout from './components/DashboardLayout.tsx';
 import { useIsAdmin } from './hooks/useIsAdmin';
 
@@ -71,6 +72,7 @@ function App() {
           <Route path="/embed/:widgetId" element={<EmbedWidgetPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/roadmap" element={<RoadmapPage />} />
 
           <Route path="/onboarding" element={
             <ProtectedRoute>
