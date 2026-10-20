@@ -17,5 +17,21 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- VibeDash support widget (skipped on /embed/* so the customer-facing call widget iframe stays clean) -->
+    <script>
+      (function () {
+        if (window.location.pathname.indexOf('/embed/') === 0) return;
+        var script = document.createElement('script');
+        script.src = 'https://vibedash.app/embed-vanilla.js';
+        script.async = true;
+        script.onload = function () {
+          window.VibeDashFeedback && window.VibeDashFeedback.init({
+            projectId: '179d870c-9043-4e64-95de-151edc007198',
+            webhookUrl: 'https://vibedash.app/.netlify/functions/submit-ticket/179d870c-9043-4e64-95de-151edc007198'
+          });
+        };
+        document.head.appendChild(script);
+      })();
+    </script>
   </body>
 </html>
