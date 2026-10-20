@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "click2call",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "ai.click2call.app",
       "buildNumber": "1",
@@ -39,21 +38,16 @@
     "plugins": [
       "expo-router",
       [
-        "expo-av",
+        "expo-audio",
         {
-          "microphonePermission": "Allow Click2Call.ai to access your microphone."
+          "microphonePermission": "Allow Click2Call.ai to access your microphone.",
+          "recordAudioAndroid": true,
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
         }
       ],
       "expo-secure-store",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "kotlinVersion": "1.9.25"
-          }
-        }
-      ],
-      "./plugins/withPinnedKotlin.js"
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
